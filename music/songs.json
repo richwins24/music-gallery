@@ -1,0 +1,10 @@
+[
+  {
+    "id": 1,
+    "title": "未命名歌曲",
+    "genre": "未分類",
+    "prompt": "請填入 Suno 的 Prompt",
+    "cover": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500",
+    "src": "music/mp3/4fbd8446-fbc1-4da5-b9de-a5c70b199a43.mp3"
+  }
+]
