@@ -1,0 +1,18 @@
+[
+  {
+    "id": 1,
+    "title": "操場上的青春",
+    "genre": "運動會",
+    "prompt": "請填入 Suno 的 Prompt",
+    "cover": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500",
+    "src": "music/mp3/song-01.mp3"
+  },
+  {
+    "id": 2,
+    "title": "那道光",
+    "genre": "運動會",
+    "prompt": "請填入 Suno 的 Prompt",
+    "cover": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500",
+    "src": "music/mp3/song-02.mp3"
+  }
+]
