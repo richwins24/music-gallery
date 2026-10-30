@@ -471,6 +471,14 @@
     document.getElementById('prevBtn').addEventListener('click', () => playAt(-1));
     document.getElementById('nextBtn').addEventListener('click', () => playAt(1));
 
+    // 音檔載入失敗時提示（例如路徑錯誤或檔案未上傳）
+    audio.addEventListener('error', () => {
+      const s = songs.find(x => x.id === currentId);
+      setPlayingUI(false);
+      currentTitle.innerText = s ? s.title + "（無法載入音檔）" : "無法載入音檔";
+      currentGenre.innerText = "請檢查 music/songs.json 的 src 路徑與檔案是否已上傳";
+    });
+
     audio.addEventListener('ended', () => {
       const idx = queue.indexOf(currentId);
       if (idx >= 0 && idx < queue.length - 1) playAt(1);
