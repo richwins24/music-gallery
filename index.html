@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Suno AI 音樂庫</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    .wave { display: flex; align-items: flex-end; gap: 2px; height: 14px; }
+    .wave span { width: 3px; height: 30%; background: #a855f7; border-radius: 2px; animation: wv .9s ease-in-out infinite; }
+    .wave span:nth-child(2) { animation-delay: .15s; }
+    .wave span:nth-child(3) { animation-delay: .3s; }
+    .wave span:nth-child(4) { animation-delay: .45s; }
+    .wave.paused span { animation-play-state: paused; }
+    @keyframes wv { 0%, 100% { height: 20%; } 50% { height: 100%; } }
+    .input { width: 100%; background: #1e293b; border: 1px solid #334155; border-radius: .5rem; padding: .5rem .75rem; color: #fff; font-size: .875rem; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen pb-32">
+
+  <!-- 頂部導航 -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col md:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-pink-500 flex items-center justify-center text-white shadow-lg shadow-purple-500/30">
+          <i class="fa-solid fa-compact-disc text-xl animate-spin" style="animation-duration: 8s;"></i>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold tracking-wide">Suno AI 音樂畫廊</h1>
+          <p class="text-xs text-slate-400">展示由 Suno 生成的所有精選 MP3</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3 w-full md:w-auto">
+        <div class="relative w-full md:w-72">
+          <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+          <input type="text" id="searchInput" placeholder="搜尋曲名、風格或 Prompt..."
+            class="w-full bg-slate-800/80 border border-slate-700 rounded-full pl-10 pr-4 py-2 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-purple-500 transition">
+        </div>
+        <button id="adminToggleBtn" class="shrink-0 px-4 py-2 rounded-full text-xs font-medium bg-slate-800 hover:bg-slate-700 border border-slate-700 transition">
+          <i class="fa-solid fa-lock"></i> 管理
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 py-8">
+
+    <!-- 管理面板 -->
+    <section id="adminPanel" class="hidden mb-8 bg-slate-900 border border-purple-500/40 rounded-2xl p-5">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="font-bold text-purple-400"><i class="fa-solid fa-unlock"></i> 管理模式</h2>
+        <button id="lockBtn" class="text-xs text-slate-400 hover:text-white">鎖定</button>
+      </div>
+      <div class="grid gap-6 md:grid-cols-3 text-sm">
+        <div class="space-y-2">
+          <h3 class="font-semibold text-slate-200">新增歌曲（加到清單末端）</h3>
+          <input id="newTitle" class="input" placeholder="曲名 *">
+          <select id="newGenre" class="input"></select>
+          <input id="newGenreCustom" class="input" placeholder="或輸入新分類名稱">
+          <textarea id="newPrompt" rows="2" class="input" placeholder="Prompt"></textarea>
+          <input id="newCover" class="input" placeholder="封面圖網址（或改用下方上傳）">
+          <label class="block text-xs text-slate-400">上傳封面圖片</label>
+          <input id="newCoverFile" type="file" accept="image/*" class="w-full text-xs text-slate-400">
+          <input id="newSrc" class="input" placeholder="MP3 網址（建議，可永久保存）">
+          <label class="block text-xs text-slate-400">或上傳 MP3（僅本次開啟有效）</label>
+          <input id="newFile" type="file" accept="audio/*" class="w-full text-xs text-slate-400">
+          <button id="addSongBtn" class="w-full py-2 rounded-lg bg-purple-600 hover:bg-purple-500 font-medium transition">新增歌曲</button>
+        </div>
+        <div class="space-y-2">
+          <h3 class="font-semibold text-slate-200">分類管理</h3>
+          <div class="flex gap-2">
+            <input id="newGenreName" class="input" placeholder="新分類名稱">
+            <button id="addGenreBtn" class="px-3 rounded-lg bg-slate-700 hover:bg-slate-600 shrink-0">新增</button>
+          </div>
+          <ul id="genreList" class="space-y-1 max-h-48 overflow-y-auto"></ul>
+        </div>
+        <div class="space-y-2">
+          <h3 class="font-semibold text-slate-200">播放清單</h3>
+          <div class="flex gap-2">
+            <input id="newPlaylistName" class="input" placeholder="清單名稱">
+            <button id="addPlaylistBtn" class="px-3 rounded-lg bg-slate-700 hover:bg-slate-600 shrink-0">建立</button>
+          </div>
+          <label class="block text-xs text-slate-400">點歌曲上的「＋清單」會加入此清單：</label>
+          <select id="activePlaylistSelect" class="input"></select>
+          <ul id="playlistList" class="space-y-1 max-h-48 overflow-y-auto"></ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 清單切換 -->
+    <div id="playlistChips" class="flex items-center gap-2 overflow-x-auto pb-3"></div>
+
+    <!-- 目前開啟的清單 -->
+    <div id="plBanner" class="hidden mb-4 flex flex-wrap items-center justify-between gap-3 bg-slate-900 border border-slate-800 rounded-xl px-4 py-3">
+      <div>
+        <p class="text-xs text-slate-400">播放清單</p>
+        <p id="plName" class="font-bold text-lg"></p>
+      </div>
+      <button id="playAllBtn" class="px-4 py-2 rounded-full bg-purple-600 hover:bg-purple-500 text-sm font-medium">
+        <i class="fa-solid fa-play"></i> 播放全部
+      </button>
+    </div>
+
+    <!-- 篩選與排序 -->
+    <div class="flex flex-col md:flex-row md:items-center gap-3 mb-6">
+      <div class="flex items-center gap-2 overflow-x-auto pb-2 flex-1" id="genreFilters"></div>
+      <select id="sortMode" class="bg-slate-800 border border-slate-700 rounded-full px-4 py-1.5 text-xs text-slate-200 focus:outline-none">
+        <option value="manual">排名順序</option>
+        <option value="hot">🔥 熱推排行</option>
+        <option value="plays">▶ 播放次數</option>
+        <option value="likes">👍 最多讚</option>
+      </select>
+    </div>
+
+    <div id="musicGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"></div>
+  </main>
+
+  <!-- 底部播放器 -->
+  <div class="fixed bottom-0 left-0 right-0 bg-slate-900/95 border-t border-slate-800 backdrop-blur-md px-4 py-3 z-50">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-3 w-full md:w-1/4">
+        <img id="currentCover" src="" alt="" class="w-12 h-12 rounded-lg object-cover bg-slate-800">
+        <div class="overflow-hidden flex-1">
+          <p id="currentTitle" class="text-sm font-semibold truncate">尚未選擇曲目</p>
+          <p id="currentGenre" class="text-xs text-slate-400">點選歌曲即可播放</p>
+        </div>
+        <div id="waveBar" class="wave shrink-0 paused"><span></span><span></span><span></span><span></span></div>
+      </div>
+      <div class="flex flex-col items-center gap-2 w-full md:w-2/4">
+        <div class="flex items-center gap-6">
+          <button id="prevBtn" class="text-slate-400 hover:text-white transition"><i class="fa-solid fa-backward-step"></i></button>
+          <button id="playPauseBtn" class="w-10 h-10 rounded-full bg-purple-600 hover:bg-purple-500 text-white flex items-center justify-center transition shadow-lg shadow-purple-600/30">
+            <i class="fa-solid fa-play" id="playIcon"></i>
+          </button>
+          <button id="nextBtn" class="text-slate-400 hover:text-white transition"><i class="fa-solid fa-forward-step"></i></button>
+        </div>
+        <div class="w-full flex items-center gap-3 text-xs text-slate-400">
+          <span id="currentTime">0:00</span>
+          <input type="range" id="progressBar" min="0" max="100" value="0" class="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500">
+          <span id="durationTime">0:00</span>
+        </div>
+      </div>
+      <div class="hidden md:flex items-center justify-end gap-4 w-1/4">
+        <button id="waveToggleBtn" class="text-xs text-purple-400 transition" title="開關波形動畫"><i class="fa-solid fa-wave-square"></i> 波形</button>
+        <i class="fa-solid fa-volume-high text-slate-400 text-xs"></i>
+        <input type="range" id="volumeBar" min="0" max="1" step="0.05" value="0.8" class="w-20 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500">
+        <a id="downloadBtn" href="#" download class="text-slate-400 hover:text-purple-400 transition ml-2" title="下載此 MP3"><i class="fa-solid fa-arrow-down-to-line"></i></a>
+      </div>
+    </div>
+  </div>
+
+  <audio id="audioPlayer"></audio>
+
+  <script>
+    // ===== 設定 =====
+    const ADMIN_PASSWORD = "1256Kk34";
+    const DEFAULT_COVER = "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500";
+    const STORE_KEY = "sg_data_v2";
+
+    // ===== 狀態 =====
+    let songs = [];          // { id, title, genre, prompt, cover, src }  陣列順序 = 排名
+    let genres = [];
+    let playlists = [];      // { id, name, ids: [] }
+    let stats = {};          // { [songId]: { plays, likes } }
+    let nextId = 1, nextPlId = 1;
+    let isAdmin = false;
+    let currentId = null;
+    let queue = [];          // 目前的播放順序（上一首／下一首依此）
+    let currentGenreFilter = "all";
+    let currentPlaylistFilter = "all";
+    let sortMode = "manual";
+    let waveOn = true;
+
+    // ===== DOM =====
+    const audio = document.getElementById('audioPlayer');
+    const playPauseBtn = document.getElementById('playPauseBtn');
+    const playIcon = document.getElementById('playIcon');
+    const progressBar = document.getElementById('progressBar');
+    const currentTimeText = document.getElementById('currentTime');
+    const durationTimeText = document.getElementById('durationTime');
+    const volumeBar = document.getElementById('volumeBar');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const currentCover = document.getElementById('currentCover');
+    const currentTitle = document.getElementById('currentTitle');
+    const currentGenre = document.getElementById('currentGenre');
+    const waveBar = document.getElementById('waveBar');
+    const waveToggleBtn = document.getElementById('waveToggleBtn');
+    const musicGrid = document.getElementById('musicGrid');
+    const searchInput = document.getElementById('searchInput');
+    const genreFilters = document.getElementById('genreFilters');
+    const playlistChips = document.getElementById('playlistChips');
+    const plBanner = document.getElementById('plBanner');
+    const plName = document.getElementById('plName');
+    const sortModeSel = document.getElementById('sortMode');
+    const adminToggleBtn = document.getElementById('adminToggleBtn');
+    const adminPanel = document.getElementById('adminPanel');
+
+    // ===== 儲存（瀏覽器本機） =====
+    function load() {
+      try {
+        const d = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
+        if (d) {
+          songs = (d.songs || []).filter(s => !s.src.startsWith("blob:"));
+          genres = d.genres || [];
+          playlists = d.playlists || [];
+          stats = d.stats || {};
+        }
+      } catch (e) { console.warn("讀取失敗", e); }
+      songs.forEach(s => { if (!stats[s.id]) stats[s.id] = { plays: 0, likes: 0 }; });
+      playlists.forEach(p => p.ids = p.ids.filter(id => songs.some(s => s.id === id)));
+      genres = [...new Set([...genres, ...songs.map(s => s.genre)])];
+      nextId = songs.reduce((m, s) => Math.max(m, s.id), 0) + 1;
+      nextPlId = playlists.reduce((m, p) => Math.max(m, p.id), 0) + 1;
+    }
+
+    function save() {
+      try {
+        localStorage.setItem(STORE_KEY, JSON.stringify({
+          songs: songs.filter(s => !s.src.startsWith("blob:")),
+          genres, playlists, stats
+        }));
+      } catch (e) {
+        alert("儲存空間不足，請改用較小的圖片或網址");
+      }
+    }
+
+    // ===== 工具 =====
+    function esc(str) {
+      return String(str ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+    function formatTime(sec) {
+      if (isNaN(sec)) return "0:00";
+      const m = Math.floor(sec / 60), s = Math.floor(sec % 60);
+      return `${m}:${s < 10 ? '0' : ''}${s}`;
+    }
+    function st(id) { return stats[id] || (stats[id] = { plays: 0, likes: 0 }); }
+    function hotScore(s) { return st(s.id).plays + st(s.id).likes * 3; }
+
+    function readImage(file) {
+      return new Promise((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => {
+          const img = new Image();
+          img.onload = () => {
+            const r = Math.min(1, 640 / img.width);
+            const c = document.createElement('canvas');
+            c.width = Math.round(img.width * r);
+            c.height = Math.round(img.height * r);
+            c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+            resolve(c.toDataURL('image/jpeg', 0.8));
+          };
+          img.onerror = reject;
+          img.src = fr.result;
+        };
+        fr.onerror = reject;
+        fr.readAsDataURL(file);
+      });
+    }
+
+    // 排序後的全部歌曲（排名 #號 以此為準）
+    function sortedAll() {
+      const arr = [...songs];
+      if (sortMode === "hot") arr.sort((a, b) => hotScore(b) - hotScore(a));
+      else if (sortMode === "plays") arr.sort((a, b) => st(b.id).plays - st(a.id).plays);
+      else if (sortMode === "likes") arr.sort((a, b) => st(b.id).likes - st(a.id).likes);
+      return arr;
+    }
+
+    // 目前清單（播放清單模式按清單順序，否則按排序）
+    function getBaseList() {
+      if (currentPlaylistFilter !== "all") {
+        const pl = playlists.find(p => p.id === currentPlaylistFilter);
+        if (pl) return pl.ids.map(id => songs.find(s => s.id === id)).filter(Boolean);
+      }
+      return sortedAll();
+    }
+
+    function getFilteredSongs() {
+      const kw = searchInput.value.toLowerCase().trim();
+      return getBaseList().filter(s => {
+        const g = currentGenreFilter === "all" || s.genre === currentGenreFilter;
+        const k = !kw || [s.title, s.genre, s.prompt].some(v => v.toLowerCase().includes(kw));
+        return g && k;
+      });
+    }
+
+    // ===== 渲染 =====
+    function renderGenreFilters() {
+      genreFilters.innerHTML = ['all', ...genres].map(g => {
+        const active = g === currentGenreFilter;
+        return `<button class="genre-btn shrink-0 px-4 py-1.5 rounded-full text-xs font-medium transition ${active ? 'bg-purple-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}" data-genre="${esc(g)}">${g === 'all' ? '全部' : esc(g)}</button>`;
+      }).join('');
+    }
+
+    function renderPlaylistChips() {
+      const items = [{ id: "all", name: "所有歌曲", n: songs.length }, ...playlists.map(p => ({ id: p.id, name: p.name, n: p.ids.length }))];
+      playlistChips.innerHTML = items.map(p => {
+        const active = String(p.id) === String(currentPlaylistFilter);
+        return `<button onclick="openPlaylist('${p.id}')" class="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium border transition ${active ? 'bg-slate-100 text-slate-900 border-slate-100' : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-slate-500'}">
+          <i class="fa-solid fa-list"></i> ${esc(p.name)} <span class="opacity-60">${p.n}</span></button>`;
+      }).join('');
+
+      const pl = playlists.find(p => p.id === currentPlaylistFilter);
+      plBanner.classList.toggle('hidden', !pl);
+      if (pl) plName.textContent = `${pl.name}（${pl.ids.length} 首）`;
+    }
+
+    function renderAdminSelects() {
+      document.getElementById('newGenre').innerHTML = genres.map(g => `<option value="${esc(g)}">${esc(g)}</option>`).join('');
+      document.getElementById('activePlaylistSelect').innerHTML = playlists.length
+        ? playlists.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')
+        : `<option value="">（尚未建立清單）</option>`;
+    }
+
+    function renderAdminLists() {
+      document.getElementById('genreList').innerHTML = genres.map(g => {
+        const n = songs.filter(s => s.genre === g).length;
+        return `<li class="flex justify-between items-center bg-slate-800 rounded px-3 py-1.5">
+          <span>${esc(g)} <span class="text-xs text-slate-500">(${n})</span></span>
+          <button onclick="deleteGenre('${esc(g)}')" class="text-xs ${n ? 'text-slate-600 cursor-not-allowed' : 'text-red-400 hover:underline'}" ${n ? 'disabled' : ''}>刪除</button>
+        </li>`;
+      }).join('') || `<li class="text-slate-500 text-xs">尚無分類</li>`;
+
+      document.getElementById('playlistList').innerHTML = playlists.map(p => `
+        <li class="flex justify-between items-center bg-slate-800 rounded px-3 py-1.5">
+          <span>${esc(p.name)} <span class="text-xs text-slate-500">(${p.ids.length} 首)</span></span>
+          <button onclick="deletePlaylist(${p.id})" class="text-xs text-red-400 hover:underline">刪除</button>
+        </li>`).join('') || `<li class="text-slate-500 text-xs">尚無清單</li>`;
+    }
+
+    function renderSongs(list) {
+      musicGrid.innerHTML = '';
+      if (songs.length === 0) {
+        musicGrid.innerHTML = `<div class="col-span-full text-center py-16 text-slate-500">尚無歌曲，請按右上角「管理」新增</div>`;
+        return;
+      }
+      if (list.length === 0) {
+        musicGrid.innerHTML = `<div class="col-span-full text-center py-12 text-slate-500">找不到相符的歌曲</div>`;
+        return;
+      }
+      const ranking = sortedAll();
+      const playingNow = !audio.paused;
+
+      list.forEach(song => {
+        const rank = ranking.findIndex(s => s.id === song.id) + 1;
+        const isCurrent = song.id === currentId;
+        const isPlayingThis = isCurrent && playingNow;
+        const showWave = waveOn && isPlayingThis;
+        const stat = st(song.id);
+
+        const adminBar = isAdmin ? `
+          <div class="flex flex-wrap gap-1 text-[11px] pt-2">
+            <button onclick="moveSong(${song.id}, -1)" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700" title="上移排名">▲</button>
+            <button onclick="moveSong(${song.id}, 1)" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700" title="下移排名">▼</button>
+            <button onclick="changeCover(${song.id})" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700">換封面</button>
+            <button onclick="addToActivePlaylist(${song.id})" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700">＋清單</button>
+            <button onclick="removeSong(${song.id})" class="px-2 py-1 rounded bg-slate-800 hover:bg-red-900 text-red-400">刪除</button>
+          </div>` : '';
+
+        const card = document.createElement('div');
+        card.className = "bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden hover:border-purple-500/50 transition group flex flex-col";
+        card.innerHTML = `
+          <div class="relative overflow-hidden aspect-video bg-slate-800">
+            <img src="${esc(song.cover)}" alt="${esc(song.title)}" class="w-full h-full object-cover group-hover:scale-105 transition duration-500">
+            <button onclick="playSongById(${song.id})" class="absolute bottom-3 right-3 w-12 h-12 rounded-full bg-purple-600 hover:bg-purple-500 text-white flex items-center justify-center shadow-lg transition transform translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100">
+              <i class="fa-solid ${isPlayingThis ? 'fa-pause' : 'fa-play'}"></i>
+            </button>
+            <span class="absolute top-3 left-3 bg-slate-950/70 backdrop-blur px-2.5 py-1 rounded-md text-[11px] font-semibold text-purple-400 border border-slate-700">${esc(song.genre)}</span>
+            <span class="absolute top-3 right-3 bg-slate-950/70 px-2.5 py-1 rounded-md text-[11px] font-bold text-amber-300 border border-slate-700">#${rank}</span>
+            ${showWave ? `<div class="wave absolute bottom-3 left-3"><span></span><span></span><span></span><span></span></div>` : ''}
+          </div>
+          <div class="p-4 flex flex-col flex-grow justify-between gap-3">
+            <div>
+              <h3 class="font-bold text-base text-white group-hover:text-purple-400 transition">${esc(song.title)}</h3>
+              <p class="text-xs text-slate-400 mt-2 line-clamp-2 leading-relaxed bg-slate-950/50 p-2 rounded-lg border border-slate-800" title="${esc(song.prompt)}">
+                <span class="text-slate-500 font-semibold">Prompt:</span> ${esc(song.prompt)}
+              </p>
+              <div class="flex items-center gap-4 mt-3 text-xs text-slate-400">
+                <span title="播放次數"><i class="fa-solid fa-headphones"></i> ${stat.plays}</span>
+                <span title="熱推分數">🔥 ${hotScore(song)}</span>
+                <button onclick="likeSong(${song.id})" class="ml-auto flex items-center gap-1 px-2 py-1 rounded-full bg-slate-800 hover:bg-pink-600/30 hover:text-pink-300 transition">
+                  <i class="fa-solid fa-thumbs-up"></i> ${stat.likes}
+                </button>
+              </div>
+              ${adminBar}
+            </div>
+            <div class="flex items-center justify-between pt-2 border-t border-slate-800/60 text-xs">
+              <button onclick="playSongById(${song.id})" class="text-purple-400 hover:underline flex items-center gap-1">
+                <i class="fa-solid fa-circle-play"></i> 試聽
+              </button>
+              <a href="${esc(song.src)}" download="${esc(song.title)}.mp3" class="text-slate-400 hover:text-white flex items-center gap-1 transition">
+                <i class="fa-solid fa-arrow-down-to-line"></i> 下載 MP3
+              </a>
+            </div>
+          </div>`;
+        musicGrid.appendChild(card);
+      });
+    }
+
+    function refreshAll() {
+      renderGenreFilters();
+      renderPlaylistChips();
+      renderAdminSelects();
+      renderAdminLists();
+      renderSongs(getFilteredSongs());
+    }
+
+    // ===== 播放 =====
+    function setPlayingUI(on) {
+      playIcon.className = on ? "fa-solid fa-pause" : "fa-solid fa-play";
+      waveBar.classList.toggle('paused', !on);
+      renderSongs(getFilteredSongs());
+    }
+
+    function loadSong(id) {
+      const s = songs.find(x => x.id === id);
+      if (!s) return;
+      currentId = id;
+      audio.src = s.src;
+      currentCover.src = s.cover;
+      currentTitle.innerText = s.title;
+      currentGenre.innerText = `${s.genre} • Suno AI`;
+      downloadBtn.href = s.src;
+      downloadBtn.setAttribute('download', `${s.title}.mp3`);
+      st(id).plays++;
+      save();
+      audio.play();
+      setPlayingUI(true);
+    }
+
+    window.playSongById = function (id) {
+      if (id === currentId) {
+        if (audio.paused) { audio.play(); setPlayingUI(true); }
+        else { audio.pause(); setPlayingUI(false); }
+        return;
+      }
+      const ids = getFilteredSongs().map(s => s.id);
+      queue = ids.includes(id) ? ids : [id];
+      loadSong(id);
+    };
+
+    window.likeSong = function (id) {
+      st(id).likes++;
+      save();
+      renderSongs(getFilteredSongs());
+    };
+
+    function playAt(offset) {
+      if (!queue.length) queue = getFilteredSongs().map(s => s.id);
+      if (!queue.length) return;
+      const idx = queue.indexOf(currentId);
+      const n = queue.length;
+      const next = idx < 0 ? 0 : (idx + offset + n) % n;
+      loadSong(queue[next]);
+    }
+
+    playPauseBtn.addEventListener('click', () => {
+      if (currentId === null) {
+        queue = getFilteredSongs().map(s => s.id);
+        if (queue.length) loadSong(queue[0]);
+        return;
+      }
+      if (audio.paused) { audio.play(); setPlayingUI(true); }
+      else { audio.pause(); setPlayingUI(false); }
+    });
+    document.getElementById('prevBtn').addEventListener('click', () => playAt(-1));
+    document.getElementById('nextBtn').addEventListener('click', () => playAt(1));
+
+    // 音檔載入失敗時提示（例如路徑錯誤或檔案未上傳）
+    audio.addEventListener('error', () => {
+      const s = songs.find(x => x.id === currentId);
+      setPlayingUI(false);
+      currentTitle.innerText = s ? s.title + "（無法載入音檔）" : "無法載入音檔";
+      currentGenre.innerText = "請檢查 music/songs.json 的 src 路徑與檔案是否已上傳";
+    });
+
+    audio.addEventListener('ended', () => {
+      const idx = queue.indexOf(currentId);
+      if (idx >= 0 && idx < queue.length - 1) playAt(1);
+      else setPlayingUI(false);
+    });
+
+    audio.addEventListener('timeupdate', () => {
+      if (!isNaN(audio.duration)) {
+        progressBar.value = (audio.currentTime / audio.duration) * 100;
+        currentTimeText.innerText = formatTime(audio.currentTime);
+        durationTimeText.innerText = formatTime(audio.duration);
+      }
+    });
+    progressBar.addEventListener('input', e => {
+      if (!isNaN(audio.duration)) audio.currentTime = (e.target.value / 100) * audio.duration;
+    });
+    volumeBar.addEventListener('input', e => { audio.volume = e.target.value; });
+
+    waveToggleBtn.addEventListener('click', () => {
+      waveOn = !waveOn;
+      waveBar.classList.toggle('hidden', !waveOn);
+      waveToggleBtn.classList.toggle('text-purple-400', waveOn);
+      waveToggleBtn.classList.toggle('text-slate-500', !waveOn);
+      renderSongs(getFilteredSongs());
+    });
+
+    // ===== 篩選 / 清單 / 排序 =====
+    searchInput.addEventListener('input', () => renderSongs(getFilteredSongs()));
+
+    genreFilters.addEventListener('click', e => {
+      const btn = e.target.closest('.genre-btn');
+      if (!btn) return;
+      currentGenreFilter = btn.dataset.genre;
+      renderGenreFilters();
+      renderSongs(getFilteredSongs());
+    });
+
+    window.openPlaylist = function (val) {
+      currentPlaylistFilter = val === "all" ? "all" : Number(val);
+      currentGenreFilter = "all";
+      refreshAll();
+    };
+
+    document.getElementById('playAllBtn').addEventListener('click', () => {
+      const list = getFilteredSongs();
+      if (!list.length) return;
+      queue = list.map(s => s.id);
+      loadSong(queue[0]);
+    });
+
+    sortModeSel.addEventListener('change', e => {
+      sortMode = e.target.value;
+      renderSongs(getFilteredSongs());
+    });
+
+    // ===== 管理（密碼保護） =====
+    adminToggleBtn.addEventListener('click', () => {
+      if (isAdmin) { adminPanel.classList.toggle('hidden'); return; }
+      const pw = prompt("請輸入管理密碼：");
+      if (pw === null) return;
+      if (pw === ADMIN_PASSWORD) {
+        isAdmin = true;
+        adminPanel.classList.remove('hidden');
+        adminToggleBtn.innerHTML = '<i class="fa-solid fa-unlock"></i> 管理';
+        refreshAll();
+      } else {
+        alert("密碼錯誤");
+      }
+    });
+
+    document.getElementById('lockBtn').addEventListener('click', () => {
+      isAdmin = false;
+      adminPanel.classList.add('hidden');
+      adminToggleBtn.innerHTML = '<i class="fa-solid fa-lock"></i> 管理';
+      refreshAll();
+    });
+
+    document.getElementById('addSongBtn').addEventListener('click', async () => {
+      const title = document.getElementById('newTitle').value.trim();
+      const genre = document.getElementById('newGenreCustom').value.trim() || document.getElementById('newGenre').value;
+      const prompt = document.getElementById('newPrompt').value.trim();
+      const urlSrc = document.getElementById('newSrc').value.trim();
+      const audioFile = document.getElementById('newFile').files[0];
+      const coverFile = document.getElementById('newCoverFile').files[0];
+      let cover = document.getElementById('newCover').value.trim() || DEFAULT_COVER;
+      const src = audioFile ? URL.createObjectURL(audioFile) : urlSrc;
+
+      if (!title) return alert("請輸入曲名");
+      if (!genre) return alert("請選擇或輸入分類");
+      if (!src) return alert("請提供 MP3 網址或選擇檔案");
+
+      try { if (coverFile) cover = await readImage(coverFile); }
+      catch (e) { return alert("封面圖讀取失敗"); }
+
+      if (!genres.includes(genre)) genres.push(genre);
+      const id = nextId++;
+      songs.push({ id, title, genre, prompt, cover, src });
+      stats[id] = { plays: 0, likes: 0 };
+
+      ['newTitle', 'newGenreCustom', 'newPrompt', 'newCover', 'newSrc'].forEach(x => document.getElementById(x).value = '');
+      document.getElementById('newFile').value = '';
+      document.getElementById('newCoverFile').value = '';
+      save();
+      refreshAll();
+    });
+
+    window.changeCover = function (id) {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.onchange = async () => {
+        const f = input.files[0];
+        if (!f) return;
+        const s = songs.find(x => x.id === id);
+        s.cover = await readImage(f);
+        save();
+        renderSongs(getFilteredSongs());
+      };
+      input.click();
+    };
+
+    window.moveSong = function (id, dir) {
+      const i = songs.findIndex(s => s.id === id);
+      const j = i + dir;
+      if (j < 0 || j >= songs.length) return;
+      [songs[i], songs[j]] = [songs[j], songs[i]];
+      save();
+      refreshAll();
+    };
+
+    window.removeSong = function (id) {
+      const s = songs.find(x => x.id === id);
+      if (!s || !confirm(`確定刪除「${s.title}」？`)) return;
+      songs = songs.filter(x => x.id !== id);
+      playlists.forEach(p => p.ids = p.ids.filter(x => x !== id));
+      delete stats[id];
+      queue = queue.filter(x => x !== id);
+      if (currentId === id) { audio.pause(); currentId = null; setPlayingUI(false); }
+      save();
+      refreshAll();
+    };
+
+    document.getElementById('addGenreBtn').addEventListener('click', () => {
+      const name = document.getElementById('newGenreName').value.trim();
+      if (!name) return;
+      if (genres.includes(name)) return alert("分類已存在");
+      genres.push(name);
+      document.getElementById('newGenreName').value = '';
+      save();
+      refreshAll();
+    });
+
+    window.deleteGenre = function (g) {
+      if (songs.some(s => s.genre === g)) return alert("此分類仍有歌曲使用");
+      genres = genres.filter(x => x !== g);
+      if (currentGenreFilter === g) currentGenreFilter = "all";
+      save();
+      refreshAll();
+    };
+
+    document.getElementById('addPlaylistBtn').addEventListener('click', () => {
+      const name = document.getElementById('newPlaylistName').value.trim();
+      if (!name) return;
+      playlists.push({ id: nextPlId++, name, ids: [] });
+      document.getElementById('newPlaylistName').value = '';
+      save();
+      refreshAll();
+    });
+
+    window.deletePlaylist = function (id) {
+      if (!confirm("確定刪除此清單？（不會刪除歌曲）")) return;
+      playlists = playlists.filter(p => p.id !== id);
+      if (currentPlaylistFilter === id) currentPlaylistFilter = "all";
+      save();
+      refreshAll();
+    };
+
+    window.addToActivePlaylist = function (songId) {
+      const sel = document.getElementById('activePlaylistSelect');
+      if (!sel.value) return alert("請先在管理面板建立播放清單");
+      const pl = playlists.find(p => p.id === Number(sel.value));
+      if (!pl) return;
+      if (pl.ids.includes(songId)) return alert(`已在「${pl.name}」中`);
+      pl.ids.push(songId);
+      save();
+      refreshAll();
+    };
+
+    // ===== 啟動：先讀本機資料，再讀 music/songs.json（所有人共用的歌單） =====
+    async function loadRemote() {
+      try {
+        const res = await fetch('music/songs.json');
+        const list = await res.json();
+        // 以 songs.json 為準：同 id 的舊資料（例如瀏覽器裡殘留的 wav 路徑）會被覆蓋
+        list.forEach(s => {
+          const i = songs.findIndex(x => x.id === s.id);
+          if (i >= 0) songs[i] = { ...songs[i], ...s };
+          else songs.push(s);
+        });
+        // 移除不在 songs.json 裡、但仍殘留在本機的舊歌曲
+        const remoteIds = list.map(s => s.id);
+        songs = songs.filter(s => remoteIds.includes(s.id));
+      } catch (e) { console.warn('無法讀取 songs.json', e); }
+    }
+
+    load();
+    loadRemote().then(() => {
+      songs.forEach(s => { if (!stats[s.id]) stats[s.id] = { plays: 0, likes: 0 }; });
+      genres = [...new Set([...genres, ...songs.map(s => s.genre)])];
+      nextId = songs.reduce((m, s) => Math.max(m, Number(s.id) || 0), 0) + 1;
+      refreshAll();
+    });
+  </script>
+</body>
+</html>
