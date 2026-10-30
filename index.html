@@ -664,7 +664,15 @@
       try {
         const res = await fetch('music/songs.json');
         const list = await res.json();
-        list.forEach(s => { if (!songs.some(x => x.id === s.id)) songs.push(s); });
+        // 以 songs.json 為準：同 id 的舊資料（例如瀏覽器裡殘留的 wav 路徑）會被覆蓋
+        list.forEach(s => {
+          const i = songs.findIndex(x => x.id === s.id);
+          if (i >= 0) songs[i] = { ...songs[i], ...s };
+          else songs.push(s);
+        });
+        // 移除不在 songs.json 裡、但仍殘留在本機的舊歌曲
+        const remoteIds = list.map(s => s.id);
+        songs = songs.filter(s => remoteIds.includes(s.id));
       } catch (e) { console.warn('無法讀取 songs.json', e); }
     }
 
