@@ -68,6 +68,14 @@
     <!-- 最近播放／繼續上次播放 -->
     <div id="recentRow" class="flex items-center gap-2 overflow-x-auto pb-3 text-xs"></div>
 
+    <!-- 我的清單（登入後顯示） -->
+    <div id="myListBox" class="hidden mb-4 flex flex-wrap items-center gap-2 text-sm">
+      <span class="text-slate-400"><i class="fa-solid fa-folder"></i> 我的清單</span>
+      <input id="newUserListName" maxlength="20" placeholder="新清單名稱" class="flex-1 min-w-[140px] bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-white">
+      <button id="addUserListBtn" class="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600">建立</button>
+      <button id="delUserListBtn" class="hidden px-3 py-1.5 rounded-lg bg-red-900/60 hover:bg-red-800 text-red-200">刪除此清單</button>
+    </div>
+
     <!-- 清單切換 -->
     <div id="playlistChips" class="flex items-center gap-2 overflow-x-auto pb-3"></div>
 
@@ -113,6 +121,21 @@
     <div class="max-w-2xl mx-auto bg-slate-900/95 border border-purple-500/40 rounded-2xl p-4 shadow-2xl">
       <p id="lyricsTitle" class="text-xs text-slate-400 text-center mb-2"></p>
       <div id="lyricsBox" class="h-48 overflow-y-auto text-center space-y-3 scroll-smooth"></div>
+    </div>
+  </div>
+
+  <!-- 留言面板 -->
+  <div id="commentPanel" class="hidden fixed inset-x-0 bottom-24 z-40 px-4">
+    <div class="max-w-xl mx-auto bg-slate-900/95 border border-slate-700 rounded-2xl p-4 shadow-2xl">
+      <div class="flex items-center justify-between mb-2">
+        <p id="commentTitle" class="font-bold"></p>
+        <button id="commentClose" class="text-xs text-slate-400 hover:text-white">關閉</button>
+      </div>
+      <div id="commentList" class="h-48 overflow-y-auto space-y-2 text-sm"></div>
+      <div class="flex gap-2 mt-2">
+        <input id="commentInput" maxlength="300" placeholder="寫下你的留言（需登入）" class="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white">
+        <button id="commentSend" class="px-4 rounded-lg bg-purple-600 hover:bg-purple-500 text-sm">送出</button>
+      </div>
     </div>
   </div>
 
@@ -286,6 +309,11 @@
 
     // 目前清單（播放清單模式按清單順序，否則按排序）
     function getBaseList() {
+      if (typeof currentPlaylistFilter === "string" && currentPlaylistFilter.startsWith("u:")) {
+        const key = currentPlaylistFilter.slice(2);
+        const ids = Object.keys((userLists[key] && userLists[key].ids) || {}).map(Number);
+        return ids.map(id => songs.find(s => s.id === id)).filter(Boolean);
+      }
       if (currentPlaylistFilter !== "all") {
         const pl = playlists.find(p => p.id === currentPlaylistFilter);
         if (pl) return pl.ids.map(id => songs.find(s => s.id === id)).filter(Boolean);
@@ -295,8 +323,11 @@
 
     function getFilteredSongs() {
       const kw = searchInput.value.toLowerCase().trim();
-      return getBaseList().filter(s => {
-        const g = currentGenreFilter === "all" || s.genre === currentGenreFilter;
+      let base = getBaseList();
+      if (currentGenreFilter === "__fav") base = base.filter(s => userFavs.has(s.id));
+      else if (currentGenreFilter === "__hist") base = songs.filter(s => userHist[s.id]).sort((a, b) => userHist[b.id] - userHist[a.id]);
+      return base.filter(s => {
+        const g = currentGenreFilter === "all" || currentGenreFilter.startsWith("__") || s.genre === currentGenreFilter;
         const k = !kw || [s.title, s.genre].some(v => v.toLowerCase().includes(kw));
         return g && k;
       });
@@ -304,23 +335,24 @@
 
     // ===== 渲染 =====
     function renderGenreFilters() {
-      genreFilters.innerHTML = ['all', ...genres].map(g => {
+      const cats = ['all', ...genres].map(g => [g, g === 'all' ? '全部' : esc(g)]);
+      const specials = currentUser ? [["__fav", "❤ 我的收藏"], ["__hist", "🕘 最近播放"]] : [];
+      genreFilters.innerHTML = [...cats, ...specials].map(([g, label]) => {
         const active = g === currentGenreFilter;
-        return `<button class="genre-btn shrink-0 px-4 py-1.5 rounded-full text-xs font-medium transition ${active ? 'bg-purple-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}" data-genre="${esc(g)}">${g === 'all' ? '全部' : esc(g)}</button>`;
+        return `<button class="genre-btn shrink-0 px-4 py-1.5 rounded-full text-xs font-medium transition ${active ? 'bg-purple-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}" data-genre="${esc(g)}">${label}</button>`;
       }).join('');
     }
 
     function renderPlaylistChips() {
-      const items = [{ id: "all", name: "所有歌曲", n: songs.length }, ...playlists.map(p => ({ id: p.id, name: p.name, n: p.ids.length }))];
+      const userItems = currentUser ? Object.entries(userLists).map(([k, v]) => ({ id: "u:" + k, name: "📁 " + (v.name || "未命名"), n: Object.keys(v.ids || {}).length })) : [];
+      const items = [{ id: "all", name: "所有歌曲", n: songs.length }, ...userItems];
       playlistChips.innerHTML = items.map(p => {
         const active = String(p.id) === String(currentPlaylistFilter);
-        return `<button onclick="openPlaylist('${p.id}')" class="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium border transition ${active ? 'bg-slate-100 text-slate-900 border-slate-100' : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-slate-500'}">
-          <i class="fa-solid fa-list"></i> ${esc(p.name)} <span class="opacity-60">${p.n}</span></button>`;
+        return `<button onclick="openPlaylist('${p.id}')" class="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium border transition ${active ? 'bg-slate-100 text-slate-900 border-slate-100' : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-slate-500'}">${esc(p.name)} <span class="opacity-60">${p.n}</span></button>`;
       }).join('');
-
-      const pl = playlists.find(p => p.id === currentPlaylistFilter);
-      plBanner.classList.toggle('hidden', !pl);
-      if (pl) plName.textContent = `${pl.name}（${pl.ids.length} 首）`;
+      const isUser = activeUserList && userLists[activeUserList];
+      plBanner.classList.toggle('hidden', !isUser);
+      if (isUser) plName.textContent = `${userLists[activeUserList].name}（${Object.keys(userLists[activeUserList].ids || {}).length} 首）`;
     }
 
     function renderSongs(list) {
@@ -342,6 +374,21 @@
         const isPlayingThis = isCurrent && playingNow;
         const showWave = waveOn && isPlayingThis;
         const stat = st(song.id);
+
+        const fav = userFavs.has(song.id);
+        const ri = ratingInfo(song.id);
+        const inList = activeUserList && userLists[activeUserList] && userLists[activeUserList].ids && userLists[activeUserList].ids[song.id];
+        const socialBar = `
+          <div class="flex flex-wrap items-center gap-2 text-[11px] pt-2">
+            <button onclick="toggleFav(${song.id})" class="px-2 py-1 rounded bg-slate-800 hover:bg-pink-900/40 ${fav ? 'text-pink-300' : 'text-slate-400'}"><i class="fa-${fav ? 'solid' : 'regular'} fa-heart"></i> ${fav ? '已收藏' : '收藏'}</button>
+            <select onchange="rateSong(${song.id}, this.value)" class="bg-slate-800 border border-slate-700 rounded px-1 py-1 text-slate-200">
+              <option value="">${ri.mine ? '取消評分（我：' + ri.mine + '★）' : '評分'}</option>
+              ${[5, 4, 3, 2, 1].map(n => `<option value="${n}" ${ri.mine === n ? 'selected' : ''}>${n} ★</option>`).join('')}
+            </select>
+            <span class="text-amber-300">★ ${ri.count ? ri.avg.toFixed(1) : '–'} (${ri.count})</span>
+            <button onclick="openComments(${song.id})" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300"><i class="fa-regular fa-comment"></i> 留言</button>
+            ${activeUserList ? `<button onclick="toggleInUserList(${song.id})" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">${inList ? '－ 從清單移除' : '＋ 加入清單'}</button>` : ''}
+          </div>`;
 
         const adminBar = isAdmin ? `
           <div class="flex gap-1 text-[11px] pt-2">
@@ -370,6 +417,7 @@
                   <i class="fa-solid fa-thumbs-up"></i> ${stat.likes}
                 </button>
               </div>
+              ${socialBar}
               ${adminBar}
             </div>
             <div class="flex items-center justify-between pt-2 border-t border-slate-800/60 text-xs">
@@ -387,6 +435,7 @@
     }
 
     function refreshAll() {
+      attachRatings();
       renderRecentRow();
       renderGenreFilters();
       renderPlaylistChips();
@@ -432,6 +481,7 @@
       }
       currentId = id;
       playHistory.push(id);
+      if (currentUser && sharedDb) sharedDb.ref('userHistory/' + currentUser.uid + '/' + id).set(Date.now());
       renderRecentRow();
       if (playHistory.length > 200) playHistory.shift();
       audio.src = s.locked ? unlockedUrls[id] : s.src;
@@ -554,15 +604,7 @@
 
     // 播放順序：有開清單就在清單內，有選分類就只在該分類內，否則全部
     function buildQueue() {
-      const base = sortedAll();
-      if (currentPlaylistFilter !== "all") {
-        const pl = playlists.find(p => p.id === currentPlaylistFilter);
-        if (pl) return pl.ids.filter(id => songs.some(s => s.id === id));
-      }
-      if (currentGenreFilter !== "all") {
-        return base.filter(s => s.genre === currentGenreFilter).map(s => s.id);
-      }
-      return base.map(s => s.id);
+      return getFilteredSongs().map(s => s.id);
     }
 
     function playPrev() { playAt(-1); }
@@ -692,7 +734,9 @@
     });
 
     window.openPlaylist = function (val) {
-      currentPlaylistFilter = val === "all" ? "all" : Number(val);
+      const str = String(val);
+      currentPlaylistFilter = str === "all" ? "all" : (str.startsWith("u:") ? str : Number(str));
+      activeUserList = str.startsWith("u:") ? str.slice(2) : null;
       currentGenreFilter = "all";
       refreshAll();
     };
@@ -955,6 +999,15 @@
       appId: "1:78453362991:web:ea8c37db786b8d4e7a91da"
     };
     let sharedDb = null;
+    let activeUserList = null;   // 目前開啟的「我的清單」key
+    let userFavs = new Set();
+    let userLists = {};          // key -> { name, ids: { songId: true } }
+    let userHist = {};           // songId -> 最近播放時間
+    let userRefs = [];
+    let ratingRaw = {};          // songId -> { uid: 1~5 }
+    let ratingAttached = {};
+    let commentRef = null;
+    let commentSongId = null;
     let authRef = null;
     let currentUser = null;
     try {
@@ -994,7 +1047,7 @@
         authRef.onAuthStateChanged(user => {
           currentUser = user;
           updateLoginBtn();
-          renderSongs(getFilteredSongs());
+          attachUserData();
         });
       }
     } catch (e) {
@@ -1023,6 +1076,155 @@
       if (!sharedDb) return;
       sharedDb.ref('stats/' + id).set({ plays: 0, likes: 0 });
     }
+
+    // ===== 登入後的個人資料：收藏、我的清單、最近播放 =====
+    function attachUserData() {
+      userRefs.forEach(r => r.off());
+      userRefs = [];
+      userFavs = new Set();
+      userLists = {};
+      userHist = {};
+      if (currentUser && sharedDb) {
+        const uid = currentUser.uid;
+        const f = sharedDb.ref('userFavs/' + uid);
+        f.on('value', snap => {
+          const v = snap.val() || {};
+          userFavs = new Set(Object.keys(v).filter(k => v[k]).map(Number));
+          refreshUserUI();
+        });
+        const pl = sharedDb.ref('userPlaylists/' + uid);
+        pl.on('value', snap => { userLists = snap.val() || {}; refreshUserUI(); });
+        const h = sharedDb.ref('userHistory/' + uid);
+        h.on('value', snap => { userHist = snap.val() || {}; refreshUserUI(); });
+        userRefs = [f, pl, h];
+      }
+      refreshUserUI();
+    }
+
+    function refreshUserUI() {
+      renderGenreFilters();
+      renderPlaylistChips();
+      document.getElementById('myListBox').classList.toggle('hidden', !currentUser);
+      document.getElementById('delUserListBtn').classList.toggle('hidden', !activeUserList);
+      renderSongs(getFilteredSongs());
+    }
+
+    // 收藏
+    window.toggleFav = function (id) {
+      if (!currentUser || !sharedDb) return alert('請先按右上角「Google 登入」');
+      const ref = sharedDb.ref('userFavs/' + currentUser.uid + '/' + id);
+      userFavs.has(id) ? ref.remove() : ref.set(true);
+    };
+
+    // 我的清單：建立、刪除、加入／移除歌曲
+    document.getElementById('addUserListBtn').addEventListener('click', async () => {
+      const name = document.getElementById('newUserListName').value.trim();
+      if (!name) return;
+      if (!currentUser || !sharedDb) return alert('請先登入');
+      const ref = sharedDb.ref('userPlaylists/' + currentUser.uid).push();
+      await ref.set({ name, ids: {} });
+      document.getElementById('newUserListName').value = '';
+      openPlaylist('u:' + ref.key);
+    });
+
+    document.getElementById('delUserListBtn').addEventListener('click', async () => {
+      if (!activeUserList || !currentUser) return;
+      if (!confirm('確定刪除此清單？（不會刪除歌曲）')) return;
+      await sharedDb.ref('userPlaylists/' + currentUser.uid + '/' + activeUserList).remove();
+      openPlaylist('all');
+    });
+
+    window.toggleInUserList = function (songId) {
+      if (!currentUser || !sharedDb) return alert('請先登入');
+      if (!activeUserList) return alert('請先點選一個「我的清單」');
+      const ids = (userLists[activeUserList] && userLists[activeUserList].ids) || {};
+      const ref = sharedDb.ref('userPlaylists/' + currentUser.uid + '/' + activeUserList + '/ids/' + songId);
+      ids[songId] ? ref.remove() : ref.set(true);
+    };
+
+    // 評分（1 到 5 星，每人對每首歌一票）
+    function attachRatings() {
+      if (!sharedDb) return;
+      songs.forEach(s => {
+        if (ratingAttached[s.id]) return;
+        ratingAttached[s.id] = true;
+        sharedDb.ref('ratings/' + s.id).on('value', snap => {
+          ratingRaw[s.id] = snap.val() || {};
+          renderSongs(getFilteredSongs());
+        });
+      });
+    }
+
+    function ratingInfo(id) {
+      const v = ratingRaw[id] || {};
+      const vals = Object.values(v).filter(x => typeof x === 'number');
+      const avg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+      return { avg, count: vals.length, mine: currentUser ? v[currentUser.uid] : undefined };
+    }
+
+    window.rateSong = function (id, val) {
+      if (!currentUser || !sharedDb) return alert('請先登入才能評分');
+      const ref = sharedDb.ref('ratings/' + id + '/' + currentUser.uid);
+      val === '' ? ref.remove() : ref.set(Number(val));
+    };
+
+    // 留言
+    window.openComments = function (id) {
+      const s = songs.find(x => x.id === id);
+      if (!s) return;
+      commentSongId = id;
+      document.getElementById('commentTitle').textContent = '💬 ' + s.title;
+      document.getElementById('commentPanel').classList.remove('hidden');
+      if (commentRef) commentRef.off();
+      if (!sharedDb) {
+        document.getElementById('commentList').innerHTML = '<p class="text-slate-500">留言功能尚未連線</p>';
+        return;
+      }
+      commentRef = sharedDb.ref('comments/' + id).limitToLast(100);
+      commentRef.on('value', snap => renderComments(snap.val() || {}));
+    };
+
+    function renderComments(v) {
+      const list = document.getElementById('commentList');
+      const items = Object.entries(v).sort((a, b) => (a[1].time || 0) - (b[1].time || 0));
+      list.innerHTML = items.length ? items.map(([cid, c]) => `
+        <div class="bg-slate-800/70 rounded-lg p-2">
+          <div class="flex items-center gap-2 text-xs text-slate-400">
+            ${c.photo ? `<img src="${esc(c.photo)}" referrerpolicy="no-referrer" class="w-5 h-5 rounded-full">` : ''}
+            <span class="font-semibold text-slate-200">${esc(c.name || '使用者')}</span>
+            <span>${new Date(c.time || 0).toLocaleString('zh-TW')}</span>
+            ${currentUser && currentUser.uid === c.uid ? `<button onclick="deleteComment('${cid}')" class="ml-auto text-red-400 hover:underline">刪除</button>` : ''}
+          </div>
+          <p class="text-slate-100 mt-1 whitespace-pre-wrap">${esc(c.text)}</p>
+        </div>`).join('') : '<p class="text-slate-500">還沒有留言，來說點什麼吧</p>';
+      list.scrollTop = list.scrollHeight;
+    }
+
+    window.deleteComment = function (cid) {
+      if (!commentSongId || !sharedDb) return;
+      if (confirm('確定刪除這則留言？')) sharedDb.ref('comments/' + commentSongId + '/' + cid).remove();
+    };
+
+    document.getElementById('commentSend').addEventListener('click', async () => {
+      const input = document.getElementById('commentInput');
+      const text = input.value.trim();
+      if (!text || commentSongId === null) return;
+      if (!currentUser || !sharedDb) return alert('請先按「Google 登入」才能留言');
+      await sharedDb.ref('comments/' + commentSongId).push().set({
+        uid: currentUser.uid,
+        name: currentUser.displayName || '使用者',
+        photo: currentUser.photoURL || '',
+        text: text.slice(0, 300),
+        time: firebase.database.ServerValue.TIMESTAMP
+      });
+      input.value = '';
+    });
+
+    document.getElementById('commentClose').addEventListener('click', () => {
+      document.getElementById('commentPanel').classList.add('hidden');
+      if (commentRef) { commentRef.off(); commentRef = null; }
+      commentSongId = null;
+    });
 
     // ===== 啟動：先讀本機資料，再讀 music/songs.json（所有人共用的歌單） =====
     async function loadRemote() {
