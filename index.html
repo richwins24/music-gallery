@@ -269,7 +269,7 @@
           songs = (d.songs || []).filter(s => !s.src.startsWith("blob:"));
           genres = d.genres || [];
           playlists = d.playlists || [];
-          stats = d.stats || {};
+          stats = {};   // 次數以共用資料庫為準，不使用本機快取
         }
       } catch (e) { console.warn("讀取失敗", e); }
       songs.forEach(s => { if (!stats[s.id]) stats[s.id] = { plays: 0, likes: 0 }; });
@@ -1059,8 +1059,10 @@
         sharedDb = firebase.database();
         sharedDb.ref('stats').on('value', snap => {
           const v = snap.val() || {};
-          Object.keys(v).forEach(id => {
-            stats[id] = { plays: v[id].plays || 0, likes: v[id].likes || 0 };
+          // 以資料庫為準：資料庫沒有的次數一律視為 0（避免本機舊資料回復）
+          songs.forEach(s => {
+            const x = v[s.id] || {};
+            stats[s.id] = { plays: x.plays || 0, likes: x.likes || 0 };
           });
           renderSongs(getFilteredSongs());
         });
