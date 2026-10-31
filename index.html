@@ -833,6 +833,7 @@
       const res = await fetch(url);
       if (!res.ok) throw new Error('找不到檔案');
       const buf = new Uint8Array(await res.arrayBuffer());
+      if (buf.length < 29) throw new Error('檔案格式錯誤或檔案不完整');
       const salt = buf.slice(0, 16), iv = buf.slice(16, 28), data = buf.slice(28);
       const key = await deriveVaultKey(code, salt);
       const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, data);
@@ -843,7 +844,7 @@
       const code = document.getElementById('vaultCode').value;
       const msg = document.getElementById('vaultMsg');
       if (!code) { msg.textContent = '請輸入解鎖碼'; return; }
-      if (!lockedMeta.length) { msg.textContent = '目前沒有特別版歌曲'; return; }
+      if (!lockedMeta.length) { msg.textContent = '目前沒有特別版歌曲（請確認 songs.json 已更新）'; return; }
       msg.textContent = '解鎖中…';
       try {
         const unlocked = [];
@@ -861,7 +862,9 @@
         msg.textContent = '已解鎖';
         refreshAll();
       } catch (e) {
-        msg.textContent = '解鎖碼錯誤';
+        console.error('特別版解鎖失敗：', e);
+        if (e.name === 'OperationError') msg.textContent = '解鎖碼錯誤（請確認大小寫與符號完全相同）';
+        else msg.textContent = '無法讀取特別版檔案：' + e.message;
       }
     }
 
