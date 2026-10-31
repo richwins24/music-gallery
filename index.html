@@ -533,6 +533,98 @@
       document.getElementById('loopBtn').classList.toggle('text-slate-400', !on);
     });
 
+    // ===== 歌詞（逐行跟隨播放時間） =====
+    // 歌詞可直接寫在 songs.json（lyrics 陣列），或放在獨立檔案（lyrics_file），需要時才讀取
+    const lyricsCache = {};
+    let lyricsToken = 0;
+    async function getLyrics(song) {
+      if (!song) return [];
+      if (Array.isArray(song.lyrics)) return song.lyrics;
+      if (!song.lyrics_file) return [];
+      if (!lyricsCache[song.id]) {
+        try {
+          const r = await fetch(song.lyrics_file);
+          lyricsCache[song.id] = r.ok ? await r.json() : [];
+        } catch (e) {
+          lyricsCache[song.id] = [];
+        }
+      }
+      return lyricsCache[song.id];
+    }
+
+    async function renderLyrics(song) {
+      const token = ++lyricsToken;
+      const box = document.getElementById('lyricsBox');
+      document.getElementById('lyricsTitle').textContent = song ? song.title : '';
+      const lines = await getLyrics(song);
+      if (token !== lyricsToken) return;   // 已切換到其他歌，略過舊的結果
+      currentLyrics = lines;
+      activeLyric = -1;
+      if (!currentLyrics.length) {
+        box.innerHTML = `<p class="text-slate-500 text-sm pt-16">尚無歌詞</p>`;
+        return;
+      }
+      box.innerHTML = currentLyrics.map((l, i) =>
+        `<p data-i="${i}" class="lyric-line text-slate-500 transition-colors duration-300">${esc(l.text)}</p>`
+      ).join('');
+    }
+
+    function updateLyrics() {
+      if (!lyricsOn || !currentLyrics.length) return;
+      const t = audio.currentTime;
+      let idx = -1;
+      for (let i = 0; i < currentLyrics.length; i++) {
+        if (currentLyrics[i].time <= t) idx = i; else break;
+      }
+      if (idx === activeLyric) return;
+      activeLyric = idx;
+      const box = document.getElementById('lyricsBox');
+      box.querySelectorAll('.lyric-line').forEach(p => {
+        const on = Number(p.dataset.i) === idx;
+        p.classList.toggle('text-white', on);
+        p.classList.toggle('text-lg', on);
+        p.classList.toggle('font-bold', on);
+        p.classList.toggle('text-slate-500', !on);
+      });
+      const cur = box.querySelector(`[data-i="${idx}"]`);
+      if (cur) cur.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+
+    document.getElementById('lyricsBtn').addEventListener('click', () => {
+      lyricsOn = !lyricsOn;
+      document.getElementById('lyricsPanel').classList.toggle('hidden', !lyricsOn);
+      document.getElementById('lyricsBtn').classList.toggle('text-purple-400', lyricsOn);
+      document.getElementById('lyricsBtn').classList.toggle('text-slate-400', !lyricsOn);
+      if (lyricsOn) updateLyrics();
+    });
+
+
+    let lastSaveAt = 0;
+    audio.addEventListener('timeupdate', () => {
+      if (currentId !== null && Date.now() - lastSaveAt > 3000) {
+        lastSaveAt = Date.now();
+        try { localStorage.setItem('sg_last', JSON.stringify({ id: currentId, t: audio.currentTime })); } catch (e) {}
+      }
+      if (!isNaN(audio.duration)) {
+        progressBar.value = (audio.currentTime / audio.duration) * 100;
+        updateLyrics();
+        currentTimeText.innerText = formatTime(audio.currentTime);
+        durationTimeText.innerText = formatTime(audio.duration);
+      }
+    });
+    progressBar.addEventListener('input', e => {
+      if (!isNaN(audio.duration)) audio.currentTime = (e.target.value / 100) * audio.duration;
+    });
+    volumeBar.addEventListener('input', e => { audio.volume = e.target.value; });
+
+    waveToggleBtn.addEventListener('click', () => {
+      waveOn = !waveOn;
+      waveBar.classList.toggle('hidden', !waveOn);
+      waveToggleBtn.classList.toggle('text-purple-400', waveOn);
+      waveToggleBtn.classList.toggle('text-slate-500', !waveOn);
+      renderSongs(getFilteredSongs());
+    });
+
     // ===== 篩選 / 清單 / 排序 =====
     searchInput.addEventListener('input', () => renderSongs(getFilteredSongs()));
 
