@@ -158,7 +158,7 @@
 
   <script>
     // ===== 設定 =====
-    const ADMIN_PASSWORD = "1256Kk34";
+    // 管理員解鎖碼以 music/auth.json 的雜湊值驗證，程式中不保存解鎖碼
     const DEFAULT_COVER = "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500";
     const STORE_KEY = "sg_data_v2";
 
@@ -221,7 +221,7 @@
       } catch (e) { console.warn("讀取失敗", e); }
       songs.forEach(s => { if (!stats[s.id]) stats[s.id] = { plays: 0, likes: 0 }; });
       playlists.forEach(p => p.ids = p.ids.filter(id => songs.some(s => s.id === id)));
-      genres = [...new Set([...genres, ...songs.map(s => s.genre)])];
+      genres = [...new Set(songs.map(s => s.genre))];   // 只顯示目前可見歌曲的分類
       nextId = songs.reduce((m, s) => Math.max(m, s.id), 0) + 1;
       nextPlId = playlists.reduce((m, p) => Math.max(m, p.id), 0) + 1;
     }
@@ -705,11 +705,27 @@
     });
 
     // ===== 管理（密碼保護） =====
-    adminToggleBtn.addEventListener('click', () => {
+    // 驗證管理員解鎖碼：與 music/auth.json 的 PBKDF2 雜湊比對
+    async function verifyAdminCode(code) {
+      try {
+        const a = await (await fetch('music/auth.json', { cache: 'no-store' })).json();
+        const salt = Uint8Array.from(atob(a.salt), c => c.charCodeAt(0));
+        const base = await crypto.subtle.importKey('raw', vaultEnc.encode(code), 'PBKDF2', false, ['deriveBits']);
+        const bits = await crypto.subtle.deriveBits(
+          { name: 'PBKDF2', salt, iterations: a.iterations, hash: 'SHA-256' }, base, 256);
+        const hex = [...new Uint8Array(bits)].map(b => b.toString(16).padStart(2, '0')).join('');
+        return hex === a.hash;
+      } catch (e) {
+        console.error('管理員驗證失敗：', e);
+        return false;
+      }
+    }
+
+    adminToggleBtn.addEventListener('click', async () => {
       if (isAdmin) { adminPanel.classList.toggle('hidden'); return; }
-      const pw = prompt("請輸入管理密碼：");
+      const pw = prompt("請輸入管理員解鎖碼：");
       if (pw === null) return;
-      if (pw === ADMIN_PASSWORD) {
+      if (await verifyAdminCode(pw)) {
         isAdmin = true;
         adminPanel.classList.remove('hidden');
         adminToggleBtn.innerHTML = '<i class="fa-solid fa-unlock"></i> 管理';
@@ -914,7 +930,7 @@
     load();
     loadRemote().then(() => {
       songs.forEach(s => { if (!stats[s.id]) stats[s.id] = { plays: 0, likes: 0 }; });
-      genres = [...new Set([...genres, ...songs.map(s => s.genre)])];
+      genres = [...new Set(songs.map(s => s.genre))];
       nextId = songs.reduce((m, s) => Math.max(m, Number(s.id) || 0), 0) + 1;
       refreshAll();
     });
