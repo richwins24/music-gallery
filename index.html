@@ -157,7 +157,12 @@
     let lyricsOn = false;
     let currentLyrics = [];   // [{ time, text }]
     let activeLyric = -1;
-    let loopMode = "off";    // off：不循環　all：全部循環　one：單曲循環
+    // 循環模式：off 關　all 全部循環　one 單曲循環　shuffle 隨機播放（播完停止）　shuffleLoop 隨機循環
+    const LOOP_MODES = ["off", "all", "one", "shuffle", "shuffleLoop"];
+    const LOOP_LABELS = { off: "循環：關", all: "循環：全部", one: "循環：單曲", shuffle: "隨機播放", shuffleLoop: "隨機循環" };
+    let loopMode = "off";
+    let playHistory = [];    // 播放過的歌曲（上一首用）
+    let shufflePlayed = new Set();  // 隨機播放時已播過的歌曲
 
     // ===== DOM =====
     const audio = document.getElementById('audioPlayer');
@@ -373,6 +378,8 @@
       const s = songs.find(x => x.id === id);
       if (!s) return;
       currentId = id;
+      playHistory.push(id);
+      if (playHistory.length > 200) playHistory.shift();
       audio.src = s.src;
       currentCover.src = s.cover;
       currentTitle.innerText = s.title;
@@ -451,8 +458,6 @@
       if (audio.paused) { audio.play(); setPlayingUI(true); }
       else { audio.pause(); setPlayingUI(false); }
     });
-    document.getElementById('prevBtn').addEventListener('click', () => playAt(-1));
-    document.getElementById('nextBtn').addEventListener('click', () => playAt(1));
 
     // 音檔載入失敗時提示（例如路徑錯誤或檔案未上傳）
     audio.addEventListener('error', () => {
@@ -468,10 +473,60 @@
         audio.play();
         return;
       }
+      if (loopMode === "shuffle" || loopMode === "shuffleLoop") {
+        playRandom(loopMode === "shuffleLoop");
+        return;
+      }
       const idx = queue.indexOf(currentId);
       if (loopMode === "all" && queue.length) { playAt(1); return; }
       if (idx >= 0 && idx < queue.length - 1) playAt(1);
       else setPlayingUI(false);
+    });
+
+    // 隨機播放：從清單中隨機挑一首（不重複，直到全部播過）
+    function playRandom(forever) {
+      if (!queue.length) queue = getFilteredSongs().map(s => s.id);
+      if (!queue.length) return;
+      let pool = queue.filter(id => !shufflePlayed.has(id) && id !== currentId);
+      if (!pool.length) {
+        if (!forever) { shufflePlayed.clear(); setPlayingUI(false); return; }
+        shufflePlayed.clear();
+        pool = queue.filter(id => id !== currentId);
+        if (!pool.length) pool = queue;
+      }
+      const pick = pool[Math.floor(Math.random() * pool.length)];
+      shufflePlayed.add(pick);
+      loadSong(pick);
+    }
+
+    // 上一首：有播放紀錄就回到上一首，否則依清單往前
+    function playPrev() {
+      if (playHistory.length >= 2) {
+        playHistory.pop();
+        const prevId = playHistory.pop();
+        loadSong(prevId);
+      } else {
+        playAt(-1);
+      }
+    }
+
+    // 下一首：隨機模式用隨機，其餘依清單順序
+    function playNext() {
+      if (loopMode === "shuffle" || loopMode === "shuffleLoop") playRandom(loopMode === "shuffleLoop");
+      else playAt(1);
+    }
+
+    document.getElementById('nextBtn').onclick = playNext;
+    document.getElementById('prevBtn').onclick = playPrev;
+
+    // 循環按鈕：依序切換五種模式
+    document.getElementById('loopBtn').addEventListener('click', () => {
+      loopMode = LOOP_MODES[(LOOP_MODES.indexOf(loopMode) + 1) % LOOP_MODES.length];
+      shufflePlayed.clear();
+      document.getElementById('loopLabel').textContent = LOOP_LABELS[loopMode];
+      const on = loopMode !== "off";
+      document.getElementById('loopBtn').classList.toggle('text-purple-400', on);
+      document.getElementById('loopBtn').classList.toggle('text-slate-400', !on);
     });
 
     // ===== 歌詞（逐行跟隨播放時間） =====
@@ -539,14 +594,6 @@
       if (lyricsOn) updateLyrics();
     });
 
-    // 切換循環模式：關 → 全部循環 → 單曲循環 → 關
-    document.getElementById('loopBtn').addEventListener('click', () => {
-      const modes = { off: "循環：關", all: "循環：全部", one: "循環：單曲" };
-      loopMode = loopMode === "off" ? "all" : loopMode === "all" ? "one" : "off";
-      document.getElementById('loopLabel').textContent = modes[loopMode];
-      document.getElementById('loopBtn').classList.toggle('text-purple-400', loopMode !== "off");
-      document.getElementById('loopBtn').classList.toggle('text-slate-400', loopMode === "off");
-    });
 
     audio.addEventListener('timeupdate', () => {
       if (!isNaN(audio.duration)) {
