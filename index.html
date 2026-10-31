@@ -68,11 +68,20 @@
     <!-- 最近播放／繼續上次播放 -->
     <div id="recentRow" class="flex items-center gap-2 overflow-x-auto pb-3 text-xs"></div>
 
+    <!-- 新歌提示 -->
+    <div id="newSongBanner" class="hidden mb-4 flex items-center justify-between gap-3 bg-purple-900/40 border border-purple-500/40 rounded-xl px-4 py-2 text-sm">
+      <span id="newSongText"></span>
+      <button id="newSongDismiss" class="shrink-0 text-xs text-slate-300 hover:text-white">知道了</button>
+    </div>
+
     <!-- 我的清單（登入後顯示） -->
     <div id="myListBox" class="hidden mb-4 flex flex-wrap items-center gap-2 text-sm">
       <span class="text-slate-400"><i class="fa-solid fa-folder"></i> 我的清單</span>
       <input id="newUserListName" maxlength="20" placeholder="新清單名稱" class="flex-1 min-w-[140px] bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-white">
       <button id="addUserListBtn" class="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600">建立</button>
+      <label class="flex items-center gap-1 text-xs text-slate-400 cursor-pointer">
+        <input id="notifyNew" type="checkbox" class="accent-purple-500"> 有新歌通知我
+      </label>
       <button id="delUserListBtn" class="hidden px-3 py-1.5 rounded-lg bg-red-900/60 hover:bg-red-800 text-red-200">刪除此清單</button>
     </div>
 
@@ -436,6 +445,7 @@
 
     function refreshAll() {
       attachRatings();
+      checkNewSongs();
       renderRecentRow();
       renderGenreFilters();
       renderPlaylistChips();
@@ -772,6 +782,13 @@
 
     adminToggleBtn.addEventListener('click', async () => {
       if (isAdmin) { adminPanel.classList.toggle('hidden'); return; }
+      if (isAdminUser()) {
+        isAdmin = true;
+        adminPanel.classList.remove('hidden');
+        adminToggleBtn.innerHTML = '<i class="fa-solid fa-unlock"></i> 管理';
+        refreshAll();
+        return;
+      }
       const pw = prompt("請輸入管理員解鎖碼：");
       if (pw === null) return;
       if (await verifyAdminCode(pw)) {
@@ -1000,6 +1017,8 @@
     };
     let sharedDb = null;
     let activeUserList = null;   // 目前開啟的「我的清單」key
+    const ADMIN_EMAIL = "richwins24@gmail.com";
+    let userPrefs = {};
     let userFavs = new Set();
     let userLists = {};          // key -> { name, ids: { songId: true } }
     let userHist = {};           // songId -> 最近播放時間
@@ -1084,6 +1103,7 @@
       userFavs = new Set();
       userLists = {};
       userHist = {};
+      userPrefs = {};
       if (currentUser && sharedDb) {
         const uid = currentUser.uid;
         const f = sharedDb.ref('userFavs/' + uid);
@@ -1096,7 +1116,13 @@
         pl.on('value', snap => { userLists = snap.val() || {}; refreshUserUI(); });
         const h = sharedDb.ref('userHistory/' + uid);
         h.on('value', snap => { userHist = snap.val() || {}; refreshUserUI(); });
-        userRefs = [f, pl, h];
+        const pr = sharedDb.ref('userPrefs/' + uid);
+        pr.on('value', snap => {
+          userPrefs = snap.val() || {};
+          document.getElementById('notifyNew').checked = !!userPrefs.notifyNew;
+          checkNewSongs();
+        });
+        userRefs = [f, pl, h, pr];
       }
       refreshUserUI();
     }
@@ -1193,7 +1219,7 @@
             ${c.photo ? `<img src="${esc(c.photo)}" referrerpolicy="no-referrer" class="w-5 h-5 rounded-full">` : ''}
             <span class="font-semibold text-slate-200">${esc(c.name || '使用者')}</span>
             <span>${new Date(c.time || 0).toLocaleString('zh-TW')}</span>
-            ${currentUser && currentUser.uid === c.uid ? `<button onclick="deleteComment('${cid}')" class="ml-auto text-red-400 hover:underline">刪除</button>` : ''}
+            ${currentUser && (currentUser.uid === c.uid || isAdminUser()) ? `<button onclick="deleteComment('${cid}')" class="ml-auto text-red-400 hover:underline">刪除</button>` : ''}
           </div>
           <p class="text-slate-100 mt-1 whitespace-pre-wrap">${esc(c.text)}</p>
         </div>`).join('') : '<p class="text-slate-500">還沒有留言，來說點什麼吧</p>';
@@ -1210,6 +1236,8 @@
       const text = input.value.trim();
       if (!text || commentSongId === null) return;
       if (!currentUser || !sharedDb) return alert('請先按「Google 登入」才能留言');
+      const lastAt = Number(localStorage.getItem('sg_lastComment') || 0);
+      if (Date.now() - lastAt < 30 * 1000) return alert('留言太頻繁，請 30 秒後再試');
       await sharedDb.ref('comments/' + commentSongId).push().set({
         uid: currentUser.uid,
         name: currentUser.displayName || '使用者',
@@ -1217,6 +1245,7 @@
         text: text.slice(0, 300),
         time: firebase.database.ServerValue.TIMESTAMP
       });
+      localStorage.setItem('sg_lastComment', String(Date.now()));
       input.value = '';
     });
 
@@ -1224,6 +1253,41 @@
       document.getElementById('commentPanel').classList.add('hidden');
       if (commentRef) { commentRef.off(); commentRef = null; }
       commentSongId = null;
+    });
+
+    // ===== 管理員判斷、新歌通知 =====
+    function isAdminUser() {
+      return !!(currentUser && currentUser.email === ADMIN_EMAIL && currentUser.emailVerified);
+    }
+
+    function checkNewSongs() {
+      const banner = document.getElementById('newSongBanner');
+      if (!currentUser || !userPrefs.notifyNew || !songs.length) { banner.classList.add('hidden'); return; }
+      const seen = userPrefs.seen || {};
+      const fresh = songs.filter(s => !seen[s.id]);
+      if (!fresh.length) { banner.classList.add('hidden'); return; }
+      document.getElementById('newSongText').textContent =
+        `🎵 有 ${fresh.length} 首新歌：` + fresh.slice(0, 3).map(s => s.title).join('、') + (fresh.length > 3 ? ' 等' : '');
+      banner.classList.remove('hidden');
+    }
+
+    document.getElementById('newSongDismiss').addEventListener('click', () => {
+      if (!currentUser || !sharedDb) return;
+      const map = {};
+      songs.forEach(s => { map[s.id] = true; });
+      sharedDb.ref('userPrefs/' + currentUser.uid + '/seen').update(map);
+    });
+
+    document.getElementById('notifyNew').addEventListener('change', async e => {
+      if (!currentUser || !sharedDb) { e.target.checked = false; return alert('請先登入'); }
+      const base = 'userPrefs/' + currentUser.uid;
+      await sharedDb.ref(base + '/notifyNew').set(e.target.checked);
+      if (e.target.checked) {
+        // 開啟時先把現有歌曲標記為已看過，只通知之後新增的歌
+        const map = {};
+        songs.forEach(s => { map[s.id] = true; });
+        await sharedDb.ref(base + '/seen').set(map);
+      }
     });
 
     // ===== 啟動：先讀本機資料，再讀 music/songs.json（所有人共用的歌單） =====
