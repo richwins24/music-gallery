@@ -1087,6 +1087,9 @@
       b.title = '點擊登出';
     }
 
+    // 登入功能目前暫停開放（敬請期待）。日後要開啟時，把 LOGIN_ENABLED 改為 true 即可
+    const LOGIN_ENABLED = false;
+
     try {
       if (LOGIN_ENABLED && sharedDb && typeof firebase.auth === 'function') {
         authRef = firebase.auth();
@@ -1099,9 +1102,6 @@
     } catch (e) {
       console.warn('登入功能未連線：', e);
     }
-
-    // 登入功能目前暫停開放（敬請期待）。日後要開啟時，把 LOGIN_ENABLED 改為 true 即可
-    const LOGIN_ENABLED = false;
 
     async function doGoogleLogin() {
       if (!authRef) return alert('登入功能尚未設定');
