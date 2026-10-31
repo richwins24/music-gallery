@@ -20,6 +20,8 @@
     @keyframes wv { 0%, 100% { height: 20%; } 50% { height: 100%; } }
     .input { width: 100%; background: #1e293b; border: 1px solid #334155; border-radius: .5rem; padding: .5rem .75rem; color: #fff; font-size: .875rem; }
   </style>
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-database-compat.js"></script>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen pb-32">
 
@@ -448,7 +450,7 @@
         downloadBtn.href = s.src;
         downloadBtn.setAttribute('download', `${s.title}.mp3`);
       }
-      if (canCount('play_' + id, 60 * 1000)) { st(id).plays++; save(); }
+      if (canCount('play_' + id, 60 * 1000)) { st(id).plays++; save(); remoteInc(id, 'plays'); }
       audio.play();
       setPlayingUI(true);
     }
@@ -480,6 +482,7 @@
         return alert("你已經為這首歌按過讚了（每首每 24 小時一次）");
       }
       st(id).likes++;
+      remoteInc(id, 'likes');
       save();
       renderSongs(getFilteredSongs());
     };
@@ -489,6 +492,7 @@
       const s = songs.find(x => x.id === id);
       if (!s || !confirm(`確定清除「${s.title}」的播放與讚數紀錄？`)) return;
       stats[id] = { plays: 0, likes: 0 };
+      remoteReset(id);
       save();
       refreshAll();
     };
@@ -496,7 +500,7 @@
     // 管理員：清除全部歌曲的紀錄
     function resetAllStats() {
       if (!confirm("確定清除「所有歌曲」的播放與讚數紀錄？此動作無法復原。")) return;
-      songs.forEach(s => { stats[s.id] = { plays: 0, likes: 0 }; });
+      songs.forEach(s => { stats[s.id] = { plays: 0, likes: 0 }; remoteReset(s.id); });
       save();
       refreshAll();
     }
@@ -906,6 +910,42 @@
       }
     }
     document.getElementById('vaultCode').addEventListener('keydown', e => { if (e.key === 'Enter') unlockVault(); });
+
+    // ===== 共用的播放與讚數（Firebase Realtime Database） =====
+    // 設定好 FIREBASE_CONFIG 後，所有人看到的次數都會同步；未設定時只顯示本機紀錄
+    const FIREBASE_CONFIG = {
+      apiKey: "AIzaSyC7zGeYGB9L6g6gOC6uDY-3HGlZPJ4VrkY",
+      authDomain: "music-gallery-e60e0.firebaseapp.com",
+      databaseURL: "https://music-gallery-e60e0-default-rtdb.firebaseio.com",
+      projectId: "music-gallery-e60e0",
+      appId: "1:78453362991:web:ea8c37db786b8d4e7a91da"
+    };
+    let sharedDb = null;
+    try {
+      if (typeof firebase !== 'undefined' && FIREBASE_CONFIG.apiKey !== "YOUR_API_KEY") {
+        firebase.initializeApp(FIREBASE_CONFIG);
+        sharedDb = firebase.database();
+        sharedDb.ref('stats').on('value', snap => {
+          const v = snap.val() || {};
+          Object.keys(v).forEach(id => {
+            stats[id] = { plays: v[id].plays || 0, likes: v[id].likes || 0 };
+          });
+          renderSongs(getFilteredSongs());
+        });
+      }
+    } catch (e) {
+      console.warn('共用次數未連線：', e);
+    }
+
+    function remoteInc(id, field) {
+      if (!sharedDb) return;
+      sharedDb.ref('stats/' + id + '/' + field).transaction(n => (n || 0) + 1);
+    }
+
+    function remoteReset(id) {
+      if (!sharedDb) return;
+      sharedDb.ref('stats/' + id).set({ plays: 0, likes: 0 });
+    }
 
     // ===== 啟動：先讀本機資料，再讀 music/songs.json（所有人共用的歌單） =====
     async function loadRemote() {
