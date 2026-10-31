@@ -95,6 +95,9 @@
       <input id="vaultCode" type="password" placeholder="輸入解鎖碼" autocomplete="off"
         class="flex-1 min-w-[180px] bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-purple-500">
       <button id="vaultBtn" class="px-4 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm">解鎖</button>
+      <label class="flex items-center gap-1 text-xs text-slate-400 cursor-pointer">
+        <input id="vaultRemember" type="checkbox" class="accent-purple-500"> 記住在這台電腦
+      </label>
       <span id="vaultMsg" class="text-xs text-slate-400"></span>
     </div>
 
@@ -840,8 +843,9 @@
       return URL.createObjectURL(new Blob([plain], { type: 'audio/mpeg' }));
     }
 
-    async function unlockVault() {
-      const code = document.getElementById('vaultCode').value;
+    async function unlockVault(codeArg) {
+      const isAuto = typeof codeArg === 'string';
+      const code = isAuto ? codeArg : document.getElementById('vaultCode').value;
       const msg = document.getElementById('vaultMsg');
       if (!code) { msg.textContent = '請輸入解鎖碼'; return; }
       if (!lockedMeta.length) { msg.textContent = '目前沒有特別版歌曲（請確認 songs.json 已更新）'; return; }
@@ -859,16 +863,32 @@
         });
         lockedMeta = [];
         document.getElementById('vaultCode').value = '';
-        msg.textContent = '已解鎖';
+        const remember = document.getElementById('vaultRemember').checked;
+        try {
+          if (remember) localStorage.setItem('sg_vault', code);
+          else localStorage.removeItem('sg_vault');
+        } catch (err) {}
+        msg.textContent = remember ? '已解鎖（此電腦會記住）' : '已解鎖';
         refreshAll();
       } catch (e) {
         console.error('特別版解鎖失敗：', e);
+        if (isAuto && e.name === 'OperationError') { try { localStorage.removeItem('sg_vault'); } catch (err) {} }
         if (e.name === 'OperationError') msg.textContent = '解鎖碼錯誤（請確認大小寫與符號完全相同）';
         else msg.textContent = '無法讀取特別版檔案：' + e.message;
       }
     }
 
-    document.getElementById('vaultBtn').addEventListener('click', unlockVault);
+    document.getElementById('vaultBtn').addEventListener('click', () => unlockVault());
+
+    // 若此電腦之前勾選過「記住」，載入時自動解鎖
+    function autoUnlockVault() {
+      let saved = null;
+      try { saved = localStorage.getItem('sg_vault'); } catch (e) {}
+      if (saved && lockedMeta.length) {
+        document.getElementById('vaultRemember').checked = true;
+        unlockVault(saved);
+      }
+    }
     document.getElementById('vaultCode').addEventListener('keydown', e => { if (e.key === 'Enter') unlockVault(); });
 
     // ===== 啟動：先讀本機資料，再讀 music/songs.json（所有人共用的歌單） =====
@@ -887,6 +907,7 @@
         // 移除不在 songs.json 裡、但仍殘留在本機的舊歌曲
         const remoteIds = list.map(s => s.id);
         songs = songs.filter(s => remoteIds.includes(s.id));
+        autoUnlockVault();
       } catch (e) { console.warn('無法讀取 songs.json', e); }
     }
 
