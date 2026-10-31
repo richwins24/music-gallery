@@ -59,7 +59,8 @@
       <div class="flex items-center justify-between">
         <h2 class="font-bold text-amber-300"><i class="fa-solid fa-unlock"></i> 管理模式</h2>
         <div class="flex items-center gap-4">
-          <button id="resetAllBtn" class="text-sm px-4 py-2 rounded-lg bg-amber-900/60 hover:bg-amber-800 text-amber-200">清除全部紀錄</button>
+          <button id="adminReportBtn" class="text-sm px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200">報表</button>
+      <button id="resetAllBtn" class="text-sm px-4 py-2 rounded-lg bg-amber-900/60 hover:bg-amber-800 text-amber-200">清除全部紀錄</button>
           <button id="lockBtn" class="text-xs text-slate-400 hover:text-white">鎖定</button>
         </div>
       </div>
@@ -82,6 +83,7 @@
       <label class="flex items-center gap-1 text-xs text-slate-400 cursor-pointer">
         <input id="notifyNew" type="checkbox" class="accent-purple-500"> 有新歌通知我
       </label>
+      <button id="yearReviewBtn" class="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600">📊 年度回顧</button>
       <button id="delUserListBtn" class="hidden px-3 py-1.5 rounded-lg bg-red-900/60 hover:bg-red-800 text-red-200">刪除此清單</button>
     </div>
 
@@ -99,9 +101,13 @@
       </button>
     </div>
 
+    <!-- 本週熱門 -->
+    <div id="hotBox" class="flex flex-wrap items-center gap-2 mb-6"></div>
+
     <!-- 篩選與排序 -->
     <div class="flex flex-col md:flex-row md:items-center gap-3 mb-6">
       <div class="flex items-center gap-2 overflow-x-auto pb-2 flex-1" id="genreFilters"></div>
+      <button id="randomBtn" class="shrink-0 px-4 py-1.5 rounded-full bg-slate-800 border border-slate-700 text-xs text-slate-200 hover:bg-slate-700">🎲 隨機一首</button>
       <select id="sortMode" class="bg-slate-800 border border-slate-700 rounded-full px-4 py-1.5 text-xs text-slate-200 focus:outline-none">
         <option value="manual">排名順序</option>
         <option value="name">🔤 曲名 A→Z</option>
@@ -130,6 +136,17 @@
     <div class="max-w-2xl mx-auto bg-slate-900/95 border border-purple-500/40 rounded-2xl p-4 shadow-2xl">
       <p id="lyricsTitle" class="text-xs text-slate-400 text-center mb-2"></p>
       <div id="lyricsBox" class="h-48 overflow-y-auto text-center space-y-3 scroll-smooth"></div>
+    </div>
+  </div>
+
+  <!-- 通用面板（年度回顧／管理員報表） -->
+  <div id="reviewPanel" class="hidden fixed inset-x-0 bottom-24 z-40 px-4">
+    <div class="max-w-xl mx-auto bg-slate-900/95 border border-slate-700 rounded-2xl p-4 shadow-2xl">
+      <div class="flex items-center justify-between mb-2">
+        <p id="reviewTitle" class="font-bold"></p>
+        <button id="reviewClose" class="text-xs text-slate-400 hover:text-white">關閉</button>
+      </div>
+      <div id="reviewBody" class="max-h-72 overflow-y-auto text-sm"></div>
     </div>
   </div>
 
@@ -445,6 +462,7 @@
 
     function refreshAll() {
       attachRatings();
+      attachWeekly();
       checkNewSongs();
       renderRecentRow();
       renderGenreFilters();
@@ -482,7 +500,7 @@
       }
     }
 
-    async function loadSong(id, startAt = 0) {
+    async function loadSongNow(id, startAt = 0) {
       const s = songs.find(x => x.id === id);
       if (!s) return;
       if (s.locked && !unlockedUrls[id]) {
@@ -512,7 +530,10 @@
         downloadBtn.href = s.src;
         downloadBtn.setAttribute('download', `${s.title}.mp3`);
       }
-      if (canCount('play_' + id, 60 * 1000)) { st(id).plays++; save(); remoteInc(id, 'plays'); }
+      if (canCount('play_' + id, 60 * 1000)) {
+        st(id).plays++; save(); remoteInc(id, 'plays');
+        if (currentUser && sharedDb) sharedDb.ref('userPlays/' + currentUser.uid + '/' + new Date().getFullYear() + '/' + id).transaction(n => (n || 0) + 1);
+      }
       audio.play();
       setPlayingUI(true);
     }
@@ -546,6 +567,7 @@
       if (snap.val()) return alert('你已經為這首歌按過讚了');
       await ref.set(true);
       remoteInc(id, 'likes');
+      bumpActivity();
     };
 
     // 管理員：清除單首歌的播放與讚數
@@ -990,6 +1012,8 @@
         const snap = await ref.once('value');
         if (snap.exists()) return alert('今天已經下載過了（每天限下載 1 次）');
         await ref.set(1);
+        bumpActivity();
+        if (sharedDb) sharedDb.ref('daily/' + todayKey() + '/downloads').transaction(n => (n || 0) + 1);
       } catch (e) {
         return alert('無法確認下載次數：' + e.message);
       }
@@ -1089,6 +1113,8 @@
     function remoteInc(id, field) {
       if (!sharedDb) return;
       sharedDb.ref('stats/' + id + '/' + field).transaction(n => (n || 0) + 1);
+      sharedDb.ref('weekly/' + weekKey() + '/' + id + '/' + field).transaction(n => (n || 0) + 1);
+      sharedDb.ref('daily/' + todayKey() + '/' + field).transaction(n => (n || 0) + 1);
     }
 
     function remoteReset(id) {
@@ -1212,14 +1238,19 @@
 
     function renderComments(v) {
       const list = document.getElementById('commentList');
-      const items = Object.entries(v).sort((a, b) => (a[1].time || 0) - (b[1].time || 0));
+      const admin = isAdminUser();
+      const items = Object.entries(v)
+        .filter(([cid, c]) => c.approved === true || admin || (currentUser && c.uid === currentUser.uid))
+        .sort((a, b) => (a[1].time || 0) - (b[1].time || 0));
       list.innerHTML = items.length ? items.map(([cid, c]) => `
         <div class="bg-slate-800/70 rounded-lg p-2">
-          <div class="flex items-center gap-2 text-xs text-slate-400">
+          <div class="flex flex-wrap items-center gap-2 text-xs text-slate-400">
             ${c.photo ? `<img src="${esc(c.photo)}" referrerpolicy="no-referrer" class="w-5 h-5 rounded-full">` : ''}
             <span class="font-semibold text-slate-200">${esc(c.name || '使用者')}</span>
             <span>${new Date(c.time || 0).toLocaleString('zh-TW')}</span>
-            ${currentUser && (currentUser.uid === c.uid || isAdminUser()) ? `<button onclick="deleteComment('${cid}')" class="ml-auto text-red-400 hover:underline">刪除</button>` : ''}
+            ${c.approved !== true ? '<span class="text-amber-300">審核中</span>' : ''}
+            ${admin && c.approved !== true ? `<button onclick="approveComment('${cid}')" class="text-emerald-300 hover:underline">通過</button>` : ''}
+            ${currentUser && (currentUser.uid === c.uid || admin) ? `<button onclick="deleteComment('${cid}')" class="ml-auto text-red-400 hover:underline">刪除</button>` : ''}
           </div>
           <p class="text-slate-100 mt-1 whitespace-pre-wrap">${esc(c.text)}</p>
         </div>`).join('') : '<p class="text-slate-500">還沒有留言，來說點什麼吧</p>';
@@ -1243,9 +1274,12 @@
         name: currentUser.displayName || '使用者',
         photo: currentUser.photoURL || '',
         text: text.slice(0, 300),
+        approved: isAdminUser(),
         time: firebase.database.ServerValue.TIMESTAMP
       });
       localStorage.setItem('sg_lastComment', String(Date.now()));
+      bumpActivity();
+      if (sharedDb) sharedDb.ref('daily/' + todayKey() + '/comments').transaction(n => (n || 0) + 1);
       input.value = '';
     });
 
@@ -1290,13 +1324,128 @@
       }
     });
 
+    // ===== 本週熱門、活動紀錄、淡入淡出、隨機、年度回顧、管理員報表 =====
+    function weekKey() {
+      const d = new Date();
+      d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
+    function bumpActivity() {
+      if (currentUser && sharedDb) sharedDb.ref('activity/' + currentUser.uid + '/' + todayKey()).transaction(n => (n || 0) + 1);
+    }
+
+    let weeklyRaw = {};
+    let weeklyAttached = false;
+    function attachWeekly() {
+      if (weeklyAttached || !sharedDb) return;
+      weeklyAttached = true;
+      sharedDb.ref('weekly/' + weekKey()).on('value', snap => {
+        weeklyRaw = snap.val() || {};
+        renderHot();
+      });
+    }
+
+    function renderHot() {
+      const box = document.getElementById('hotBox');
+      const rows = songs.map(s => {
+        const w = weeklyRaw[s.id] || {};
+        return { s, score: (w.plays || 0) + (w.likes || 0) * 3 };
+      }).filter(x => x.score > 0).sort((a, b) => b.score - a.score).slice(0, 3);
+      box.innerHTML = rows.length
+        ? '<span class="text-xs text-slate-400">🔥 本週熱門</span>' + rows.map((x, i) =>
+            `<button onclick="playSongById(${x.s.id})" class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs hover:border-amber-400">#${i + 1} ${esc(x.s.title)}</button>`).join('')
+        : '<span class="text-xs text-slate-500">本週還沒有熱門歌曲</span>';
+    }
+
+    function fadeVolume(to, ms) {
+      return new Promise(resolve => {
+        const from = audio.volume, steps = 10;
+        let i = 0;
+        const t = setInterval(() => {
+          i++;
+          audio.volume = Math.max(0, Math.min(1, from + (to - from) * (i / steps)));
+          if (i >= steps) { clearInterval(t); resolve(); }
+        }, ms / steps);
+      });
+    }
+
+    async function loadSong(id, startAt = 0) {
+      const target = Number(volumeBar.value);
+      if (!audio.paused && audio.src && currentId !== id) await fadeVolume(0, 300);
+      await loadSongNow(id, startAt);
+      audio.volume = 0;
+      fadeVolume(target, 500);
+    }
+
+    document.getElementById('randomBtn').addEventListener('click', () => {
+      const pool = getFilteredSongs().filter(s => s.id !== currentId);
+      const unheard = pool.filter(s => !userHist[s.id]);
+      const list = unheard.length ? unheard : pool;
+      if (!list.length) return alert('目前範圍內沒有其他歌曲');
+      playSongById(list[Math.floor(Math.random() * list.length)].id);
+    });
+
+    function showPanel(title, html) {
+      document.getElementById('reviewTitle').textContent = title;
+      document.getElementById('reviewBody').innerHTML = html;
+      document.getElementById('reviewPanel').classList.remove('hidden');
+    }
+    document.getElementById('reviewClose').addEventListener('click', () => {
+      document.getElementById('reviewPanel').classList.add('hidden');
+    });
+
+    document.getElementById('yearReviewBtn').addEventListener('click', async () => {
+      if (!currentUser || !sharedDb) return alert('請先登入');
+      const y = String(new Date().getFullYear());
+      const snap = await sharedDb.ref('userPlays/' + currentUser.uid + '/' + y).once('value');
+      const arr = Object.entries(snap.val() || {})
+        .map(([id, n]) => ({ s: songs.find(x => x.id === Number(id)), n }))
+        .filter(x => x.s).sort((a, b) => b.n - a.n);
+      if (!arr.length) return showPanel(y + ' 年度回顧', '<p class="text-slate-500">今年還沒有播放紀錄</p>');
+      const total = arr.reduce((a, b) => a + b.n, 0);
+      const genreCount = {};
+      arr.forEach(x => { genreCount[x.s.genre] = (genreCount[x.s.genre] || 0) + x.n; });
+      const topGenre = Object.entries(genreCount).sort((a, b) => b[1] - a[1])[0];
+      showPanel(y + ' 年度回顧', `
+        <p class="mb-2">今年共播放 <b>${total}</b> 次，最常聽的分類是 <b>${esc(topGenre[0])}</b></p>
+        <ol class="list-decimal pl-5 space-y-1">${arr.slice(0, 10).map(x => `<li>${esc(x.s.title)}（${x.n} 次）</li>`).join('')}</ol>`);
+    });
+
+    window.approveComment = function (cid) {
+      if (!isAdminUser() || commentSongId === null) return;
+      sharedDb.ref('comments/' + commentSongId + '/' + cid + '/approved').set(true);
+    };
+
+    document.getElementById('adminReportBtn').addEventListener('click', async () => {
+      if (!isAdminUser() || !sharedDb) return alert('僅管理員可使用');
+      const [daily, act] = await Promise.all([
+        sharedDb.ref('daily').limitToLast(14).once('value'),
+        sharedDb.ref('activity').once('value')
+      ]);
+      const d = daily.val() || {};
+      const rows = Object.keys(d).sort().map(k => `
+        <tr><td class="pr-3">${k}</td><td class="pr-3">${d[k].plays || 0}</td><td class="pr-3">${d[k].likes || 0}</td><td class="pr-3">${d[k].downloads || 0}</td><td>${d[k].comments || 0}</td></tr>`).join('');
+      const today = todayKey();
+      const flags = Object.entries(act.val() || {})
+        .map(([uid, days]) => [uid, (days || {})[today] || 0])
+        .filter(([u, n]) => n >= 30)
+        .map(([u, n]) => `<li>帳號 ${esc(u.slice(0, 6))}… 今日操作 ${n} 次</li>`).join('');
+      showPanel('管理員報表', `
+        <h3 class="font-semibold mb-2">近 14 天數據</h3>
+        <table class="text-xs"><tr><th class="pr-3 text-left">日期</th><th class="pr-3">播放</th><th class="pr-3">讚</th><th class="pr-3">下載</th><th>留言</th></tr>${rows}</table>
+        <h3 class="font-semibold mt-4 mb-2">今日異常活動（操作 30 次以上）</h3>
+        ${flags ? '<ul class="text-xs space-y-1">' + flags + '</ul>' : '<p class="text-slate-500 text-xs">沒有</p>'}`);
+    });
+
     // ===== 啟動：先讀本機資料，再讀 music/songs.json（所有人共用的歌單） =====
     async function loadRemote() {
       try {
         const res = await fetch('music/songs.json');
         const all = await res.json();
         lockedMeta = all.filter(x => x.locked);
-        const list = all.filter(x => !x.locked);
+        const today = todayKey();
+        const list = all.filter(x => !x.locked && (!x.publish_at || x.publish_at <= today) && (!x.hide_at || x.hide_at >= today));
         // 以 songs.json 為準：同 id 的舊資料（例如瀏覽器裡殘留的 wav 路徑）會被覆蓋
         list.forEach(s => {
           const i = songs.findIndex(x => x.id === s.id);
