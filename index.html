@@ -22,6 +22,7 @@
   </style>
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen pb-32">
 
@@ -43,6 +44,7 @@
           <input type="text" id="searchInput" placeholder="搜尋曲名或分類..."
             class="w-full bg-slate-800/80 border border-slate-700 rounded-full pl-10 pr-4 py-2 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-purple-500 transition">
         </div>
+        <button id="loginBtn" class="shrink-0 px-4 py-2 rounded-full text-xs font-medium bg-slate-800 hover:bg-slate-700 border border-slate-700 transition">Google 登入</button>
         <button id="adminToggleBtn" class="shrink-0 px-4 py-2 rounded-full text-xs font-medium bg-slate-800 hover:bg-slate-700 border border-slate-700 transition">
           <i class="fa-solid fa-lock"></i> 管理
         </button>
@@ -477,14 +479,13 @@
       return true;
     }
 
-    window.likeSong = function (id) {
-      if (!canCount('like_' + id, 24 * 60 * 60 * 1000)) {
-        return alert("你已經為這首歌按過讚了（每首每 24 小時一次）");
-      }
-      st(id).likes++;
+    window.likeSong = async function (id) {
+      if (!currentUser || !sharedDb) return alert('請先按右上角「Google 登入」才能按讚');
+      const ref = sharedDb.ref('userLikes/' + currentUser.uid + '/' + id);
+      const snap = await ref.once('value');
+      if (snap.val()) return alert('你已經為這首歌按過讚了');
+      await ref.set(true);
       remoteInc(id, 'likes');
-      save();
-      renderSongs(getFilteredSongs());
     };
 
     // 管理員：清除單首歌的播放與讚數
@@ -921,6 +922,8 @@
       appId: "1:78453362991:web:ea8c37db786b8d4e7a91da"
     };
     let sharedDb = null;
+    let authRef = null;
+    let currentUser = null;
     try {
       if (typeof firebase !== 'undefined' && FIREBASE_CONFIG.apiKey !== "YOUR_API_KEY") {
         firebase.initializeApp(FIREBASE_CONFIG);
@@ -936,6 +939,38 @@
     } catch (e) {
       console.warn('共用次數未連線：', e);
     }
+
+    function updateLoginBtn() {
+      const b = document.getElementById('loginBtn');
+      if (!b) return;
+      b.textContent = currentUser ? '登出（' + (currentUser.displayName || '已登入') + '）' : 'Google 登入';
+    }
+
+    try {
+      if (sharedDb && typeof firebase.auth === 'function') {
+        authRef = firebase.auth();
+        authRef.onAuthStateChanged(user => {
+          currentUser = user;
+          updateLoginBtn();
+          renderSongs(getFilteredSongs());
+        });
+      }
+    } catch (e) {
+      console.warn('登入功能未連線：', e);
+    }
+
+    document.getElementById('loginBtn').addEventListener('click', async () => {
+      if (!authRef) return alert('登入功能尚未設定');
+      if (currentUser) {
+        if (confirm('確定要登出嗎？')) authRef.signOut();
+        return;
+      }
+      try {
+        await authRef.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+      } catch (e) {
+        alert('登入失敗：' + e.message);
+      }
+    });
 
     function remoteInc(id, field) {
       if (!sharedDb) return;
