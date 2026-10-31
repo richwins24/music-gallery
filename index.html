@@ -90,6 +90,14 @@
       </select>
     </div>
 
+    <div id="vaultBox" class="mb-6 bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 flex flex-wrap items-center gap-3">
+      <span class="text-sm text-slate-300"><i class="fa-solid fa-lock"></i> 特別版</span>
+      <input id="vaultCode" type="password" placeholder="輸入解鎖碼" autocomplete="off"
+        class="flex-1 min-w-[180px] bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-purple-500">
+      <button id="vaultBtn" class="px-4 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm">解鎖</button>
+      <span id="vaultMsg" class="text-xs text-slate-400"></span>
+    </div>
+
     <div id="musicGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"></div>
   </main>
 
@@ -805,11 +813,68 @@
       try { localStorage.setItem('sg_volume', e.target.value); } catch (err) {}
     });
 
+    // ===== 特別版：加密音檔 + 解鎖碼 =====
+    let lockedMeta = [];   // songs.json 中 locked: true 的歌曲（尚未解鎖）
+    const vaultEnc = new TextEncoder();
+
+    async function deriveVaultKey(code, salt) {
+      const base = await crypto.subtle.importKey('raw', vaultEnc.encode(code), 'PBKDF2', false, ['deriveKey']);
+      return crypto.subtle.deriveKey(
+        { name: 'PBKDF2', salt, iterations: 600000, hash: 'SHA-256' },
+        base,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['decrypt']
+      );
+    }
+
+    // 讀取 .enc 檔，解密成可播放的暫存網址（只存在這次開啟的頁面中）
+    async function decryptVaultFile(code, url) {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('找不到檔案');
+      const buf = new Uint8Array(await res.arrayBuffer());
+      const salt = buf.slice(0, 16), iv = buf.slice(16, 28), data = buf.slice(28);
+      const key = await deriveVaultKey(code, salt);
+      const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, data);
+      return URL.createObjectURL(new Blob([plain], { type: 'audio/mpeg' }));
+    }
+
+    async function unlockVault() {
+      const code = document.getElementById('vaultCode').value;
+      const msg = document.getElementById('vaultMsg');
+      if (!code) { msg.textContent = '請輸入解鎖碼'; return; }
+      if (!lockedMeta.length) { msg.textContent = '目前沒有特別版歌曲'; return; }
+      msg.textContent = '解鎖中…';
+      try {
+        const unlocked = [];
+        for (const m of lockedMeta) {
+          const src = await decryptVaultFile(code, m.src_enc);
+          unlocked.push({ id: m.id, title: m.title, genre: m.genre, prompt: '', cover: m.cover || DEFAULT_COVER, src });
+        }
+        unlocked.forEach(u => {
+          if (!songs.some(x => x.id === u.id)) songs.push(u);
+          if (!stats[u.id]) stats[u.id] = { plays: 0, likes: 0 };
+          if (!genres.includes(u.genre)) genres.push(u.genre);
+        });
+        lockedMeta = [];
+        document.getElementById('vaultCode').value = '';
+        msg.textContent = '已解鎖';
+        refreshAll();
+      } catch (e) {
+        msg.textContent = '解鎖碼錯誤';
+      }
+    }
+
+    document.getElementById('vaultBtn').addEventListener('click', unlockVault);
+    document.getElementById('vaultCode').addEventListener('keydown', e => { if (e.key === 'Enter') unlockVault(); });
+
     // ===== 啟動：先讀本機資料，再讀 music/songs.json（所有人共用的歌單） =====
     async function loadRemote() {
       try {
         const res = await fetch('music/songs.json');
-        const list = await res.json();
+        const all = await res.json();
+        lockedMeta = all.filter(x => x.locked);
+        const list = all.filter(x => !x.locked);
         // 以 songs.json 為準：同 id 的舊資料（例如瀏覽器裡殘留的 wav 路徑）會被覆蓋
         list.forEach(s => {
           const i = songs.findIndex(x => x.id === s.id);
