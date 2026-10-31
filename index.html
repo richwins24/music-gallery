@@ -81,16 +81,6 @@
     <!-- 篩選與排序 -->
     <div class="flex flex-col md:flex-row md:items-center gap-3 mb-6">
       <div class="flex items-center gap-2 overflow-x-auto pb-2 flex-1" id="genreFilters"></div>
-      <div class="flex items-center gap-2">
-        <select id="scopeSel" class="bg-slate-800 border border-slate-700 rounded-full px-4 py-1.5 text-xs text-slate-200 focus:outline-none">
-          <option value="all">範圍：全部歌曲</option>
-          <option value="genre">範圍：目前分類</option>
-          <option value="playlist">範圍：目前清單</option>
-        </select>
-        <button id="playScopeBtn" class="px-4 py-1.5 rounded-full bg-purple-600 hover:bg-purple-500 text-xs font-medium whitespace-nowrap">
-          <i class="fa-solid fa-play"></i> 播放範圍 <span id="scopeCount" class="opacity-70"></span>
-        </button>
-      </div>
       <select id="sortMode" class="bg-slate-800 border border-slate-700 rounded-full px-4 py-1.5 text-xs text-slate-200 focus:outline-none">
         <option value="manual">排名順序</option>
         <option value="name">🔤 曲名 A→Z</option>
@@ -177,13 +167,11 @@
     let lyricsOn = false;
     let currentLyrics = [];   // [{ time, text }]
     let activeLyric = -1;
-    // 循環模式：off 關　all 全部循環　one 單曲循環　shuffle 隨機播放（播完停止）　shuffleLoop 隨機循環
-    const LOOP_MODES = ["off", "all", "one", "shuffle", "shuffleLoop"];
-    const LOOP_LABELS = { off: "循環：關", all: "循環：全部", one: "循環：單曲", shuffle: "隨機播放", shuffleLoop: "隨機循環" };
+    // 循環模式：關（播完停止）／全部循環／單曲循環
+    const LOOP_MODES = ["off", "all", "one"];
+    const LOOP_LABELS = { off: "循環：關", all: "循環：全部", one: "循環：單曲" };
     let loopMode = "off";
-    let loopScope = "all";   // 循環範圍：all 全部　genre 目前分類　playlist 目前清單
-    let playHistory = [];    // 播放過的歌曲（上一首用）
-    let shufflePlayed = new Set();  // 隨機播放時已播過的歌曲
+    let playHistory = [];   // 播放過的歌曲（最近播放用）
 
     // ===== DOM =====
     const audio = document.getElementById('audioPlayer');
@@ -321,7 +309,6 @@
     }
 
     function renderSongs(list) {
-      updateScopeCount();
       musicGrid.innerHTML = '';
       if (songs.length === 0) {
         musicGrid.innerHTML = `<div class="col-span-full text-center py-16 text-slate-500">尚無歌曲，請按右上角「管理」新增</div>`;
@@ -511,10 +498,6 @@
         audio.play();
         return;
       }
-      if (loopMode === "shuffle" || loopMode === "shuffleLoop") {
-        playRandom(loopMode === "shuffleLoop");
-        return;
-      }
       queue = buildQueue();
       const idx = queue.indexOf(currentId);
       if (loopMode === "all" && queue.length) { playAt(1); return; }
@@ -522,177 +505,32 @@
       else setPlayingUI(false);
     });
 
-    // 依「循環範圍」產生播放清單
+    // 播放順序：有開清單就在清單內，有選分類就只在該分類內，否則全部
     function buildQueue() {
       const base = sortedAll();
-      if (loopScope === "genre" && currentGenreFilter !== "all") {
-        return base.filter(s => s.genre === currentGenreFilter).map(s => s.id);
-      }
-      if (loopScope === "playlist" && currentPlaylistFilter !== "all") {
+      if (currentPlaylistFilter !== "all") {
         const pl = playlists.find(p => p.id === currentPlaylistFilter);
         if (pl) return pl.ids.filter(id => songs.some(s => s.id === id));
+      }
+      if (currentGenreFilter !== "all") {
+        return base.filter(s => s.genre === currentGenreFilter).map(s => s.id);
       }
       return base.map(s => s.id);
     }
 
-    // 顯示目前範圍的歌曲數量
-    function updateScopeCount() {
-      const n = buildQueue().length;
-      document.getElementById('scopeCount').textContent = `（${n} 首）`;
-    }
-
-    // 隨機播放：從清單中隨機挑一首（不重複，直到全部播過）
-    function playRandom(forever) {
-      queue = buildQueue();
-      if (!queue.length) return;
-      let pool = queue.filter(id => !shufflePlayed.has(id) && id !== currentId);
-      if (!pool.length) {
-        if (!forever) { shufflePlayed.clear(); setPlayingUI(false); return; }
-        shufflePlayed.clear();
-        pool = queue.filter(id => id !== currentId);
-        if (!pool.length) pool = queue;
-      }
-      const pick = pool[Math.floor(Math.random() * pool.length)];
-      shufflePlayed.add(pick);
-      loadSong(pick);
-    }
-
-    // 上一首：有播放紀錄就回到上一首，否則依清單往前
-    function playPrev() {
-      if (playHistory.length >= 2) {
-        playHistory.pop();
-        const prevId = playHistory.pop();
-        loadSong(prevId);
-      } else {
-        playAt(-1);
-      }
-    }
-
-    // 下一首：隨機模式用隨機，其餘依清單順序
-    function playNext() {
-      if (loopMode === "shuffle" || loopMode === "shuffleLoop") playRandom(loopMode === "shuffleLoop");
-      else playAt(1);
-    }
+    function playPrev() { playAt(-1); }
+    function playNext() { playAt(1); }
 
     document.getElementById('nextBtn').onclick = playNext;
     document.getElementById('prevBtn').onclick = playPrev;
 
-    // 選擇循環範圍
-    document.getElementById('scopeSel').addEventListener('change', e => {
-      loopScope = e.target.value;
-      shufflePlayed.clear();
-      updateScopeCount();
-    });
-
-    // 播放範圍：從範圍內第一首開始（隨機模式則隨機開始）
-    document.getElementById('playScopeBtn').addEventListener('click', () => {
-      queue = buildQueue();
-      if (!queue.length) return;
-      shufflePlayed.clear();
-      if (loopMode === "shuffle" || loopMode === "shuffleLoop") playRandom(loopMode === "shuffleLoop");
-      else loadSong(queue[0]);
-    });
-
-    // 循環按鈕：依序切換五種模式
+    // 循環按鈕：關 → 全部循環 → 單曲循環 → 關
     document.getElementById('loopBtn').addEventListener('click', () => {
       loopMode = LOOP_MODES[(LOOP_MODES.indexOf(loopMode) + 1) % LOOP_MODES.length];
-      shufflePlayed.clear();
       document.getElementById('loopLabel').textContent = LOOP_LABELS[loopMode];
       const on = loopMode !== "off";
       document.getElementById('loopBtn').classList.toggle('text-purple-400', on);
       document.getElementById('loopBtn').classList.toggle('text-slate-400', !on);
-    });
-
-    // ===== 歌詞（逐行跟隨播放時間） =====
-    // 歌詞可直接寫在 songs.json（lyrics 陣列），或放在獨立檔案（lyrics_file），需要時才讀取
-    const lyricsCache = {};
-    let lyricsToken = 0;
-    async function getLyrics(song) {
-      if (!song) return [];
-      if (Array.isArray(song.lyrics)) return song.lyrics;
-      if (!song.lyrics_file) return [];
-      if (!lyricsCache[song.id]) {
-        try {
-          const r = await fetch(song.lyrics_file);
-          lyricsCache[song.id] = r.ok ? await r.json() : [];
-        } catch (e) {
-          lyricsCache[song.id] = [];
-        }
-      }
-      return lyricsCache[song.id];
-    }
-
-    async function renderLyrics(song) {
-      const token = ++lyricsToken;
-      const box = document.getElementById('lyricsBox');
-      document.getElementById('lyricsTitle').textContent = song ? song.title : '';
-      const lines = await getLyrics(song);
-      if (token !== lyricsToken) return;   // 已切換到其他歌，略過舊的結果
-      currentLyrics = lines;
-      activeLyric = -1;
-      if (!currentLyrics.length) {
-        box.innerHTML = `<p class="text-slate-500 text-sm pt-16">尚無歌詞</p>`;
-        return;
-      }
-      box.innerHTML = currentLyrics.map((l, i) =>
-        `<p data-i="${i}" class="lyric-line text-slate-500 transition-colors duration-300">${esc(l.text)}</p>`
-      ).join('');
-    }
-
-    function updateLyrics() {
-      if (!lyricsOn || !currentLyrics.length) return;
-      const t = audio.currentTime;
-      let idx = -1;
-      for (let i = 0; i < currentLyrics.length; i++) {
-        if (currentLyrics[i].time <= t) idx = i; else break;
-      }
-      if (idx === activeLyric) return;
-      activeLyric = idx;
-      const box = document.getElementById('lyricsBox');
-      box.querySelectorAll('.lyric-line').forEach(p => {
-        const on = Number(p.dataset.i) === idx;
-        p.classList.toggle('text-white', on);
-        p.classList.toggle('text-lg', on);
-        p.classList.toggle('font-bold', on);
-        p.classList.toggle('text-slate-500', !on);
-      });
-      const cur = box.querySelector(`[data-i="${idx}"]`);
-      if (cur) cur.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    }
-
-    document.getElementById('lyricsBtn').addEventListener('click', () => {
-      lyricsOn = !lyricsOn;
-      document.getElementById('lyricsPanel').classList.toggle('hidden', !lyricsOn);
-      document.getElementById('lyricsBtn').classList.toggle('text-purple-400', lyricsOn);
-      document.getElementById('lyricsBtn').classList.toggle('text-slate-400', !lyricsOn);
-      if (lyricsOn) updateLyrics();
-    });
-
-
-    let lastSaveAt = 0;
-    audio.addEventListener('timeupdate', () => {
-      if (currentId !== null && Date.now() - lastSaveAt > 3000) {
-        lastSaveAt = Date.now();
-        try { localStorage.setItem('sg_last', JSON.stringify({ id: currentId, t: audio.currentTime })); } catch (e) {}
-      }
-      if (!isNaN(audio.duration)) {
-        progressBar.value = (audio.currentTime / audio.duration) * 100;
-        updateLyrics();
-        currentTimeText.innerText = formatTime(audio.currentTime);
-        durationTimeText.innerText = formatTime(audio.duration);
-      }
-    });
-    progressBar.addEventListener('input', e => {
-      if (!isNaN(audio.duration)) audio.currentTime = (e.target.value / 100) * audio.duration;
-    });
-    volumeBar.addEventListener('input', e => { audio.volume = e.target.value; });
-
-    waveToggleBtn.addEventListener('click', () => {
-      waveOn = !waveOn;
-      waveBar.classList.toggle('hidden', !waveOn);
-      waveToggleBtn.classList.toggle('text-purple-400', waveOn);
-      waveToggleBtn.classList.toggle('text-slate-500', !waveOn);
-      renderSongs(getFilteredSongs());
     });
 
     // ===== 篩選 / 清單 / 排序 =====
