@@ -115,6 +115,7 @@
         </div>
       </div>
       <div class="hidden md:flex items-center justify-end gap-4 w-1/4">
+        <button id="loopBtn" class="text-xs text-slate-400 hover:text-purple-400 transition" title="循環模式"><i class="fa-solid fa-repeat"></i> <span id="loopLabel">循環：關</span></button>
         <button id="waveToggleBtn" class="text-xs text-purple-400 transition" title="開關波形動畫"><i class="fa-solid fa-wave-square"></i> 波形</button>
         <i class="fa-solid fa-volume-high text-slate-400 text-xs"></i>
         <input type="range" id="volumeBar" min="0" max="1" step="0.05" value="0.8" class="w-20 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500">
@@ -144,6 +145,7 @@
     let currentPlaylistFilter = "all";
     let sortMode = "manual";
     let waveOn = true;
+    let loopMode = "off";    // off：不循環　all：全部循環　one：單曲循環
 
     // ===== DOM =====
     const audio = document.getElementById('audioPlayer');
@@ -450,9 +452,24 @@
     });
 
     audio.addEventListener('ended', () => {
+      if (loopMode === "one") {
+        audio.currentTime = 0;
+        audio.play();
+        return;
+      }
       const idx = queue.indexOf(currentId);
+      if (loopMode === "all" && queue.length) { playAt(1); return; }
       if (idx >= 0 && idx < queue.length - 1) playAt(1);
       else setPlayingUI(false);
+    });
+
+    // 切換循環模式：關 → 全部循環 → 單曲循環 → 關
+    document.getElementById('loopBtn').addEventListener('click', () => {
+      const modes = { off: "循環：關", all: "循環：全部", one: "循環：單曲" };
+      loopMode = loopMode === "off" ? "all" : loopMode === "all" ? "one" : "off";
+      document.getElementById('loopLabel').textContent = modes[loopMode];
+      document.getElementById('loopBtn').classList.toggle('text-purple-400', loopMode !== "off");
+      document.getElementById('loopBtn').classList.toggle('text-slate-400', loopMode === "off");
     });
 
     audio.addEventListener('timeupdate', () => {
