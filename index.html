@@ -500,10 +500,31 @@
     });
 
     // ===== 歌詞（逐行跟隨播放時間） =====
-    function renderLyrics(song) {
+    // 歌詞可直接寫在 songs.json（lyrics 陣列），或放在獨立檔案（lyrics_file），需要時才讀取
+    const lyricsCache = {};
+    let lyricsToken = 0;
+    async function getLyrics(song) {
+      if (!song) return [];
+      if (Array.isArray(song.lyrics)) return song.lyrics;
+      if (!song.lyrics_file) return [];
+      if (!lyricsCache[song.id]) {
+        try {
+          const r = await fetch(song.lyrics_file);
+          lyricsCache[song.id] = r.ok ? await r.json() : [];
+        } catch (e) {
+          lyricsCache[song.id] = [];
+        }
+      }
+      return lyricsCache[song.id];
+    }
+
+    async function renderLyrics(song) {
+      const token = ++lyricsToken;
       const box = document.getElementById('lyricsBox');
       document.getElementById('lyricsTitle').textContent = song ? song.title : '';
-      currentLyrics = Array.isArray(song && song.lyrics) ? song.lyrics : [];
+      const lines = await getLyrics(song);
+      if (token !== lyricsToken) return;   // 已切換到其他歌，略過舊的結果
+      currentLyrics = lines;
       activeLyric = -1;
       if (!currentLyrics.length) {
         box.innerHTML = `<p class="text-slate-500 text-sm pt-16">尚無歌詞</p>`;
