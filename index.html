@@ -78,6 +78,16 @@
     <!-- 篩選與排序 -->
     <div class="flex flex-col md:flex-row md:items-center gap-3 mb-6">
       <div class="flex items-center gap-2 overflow-x-auto pb-2 flex-1" id="genreFilters"></div>
+      <div class="flex items-center gap-2">
+        <select id="scopeSel" class="bg-slate-800 border border-slate-700 rounded-full px-4 py-1.5 text-xs text-slate-200 focus:outline-none">
+          <option value="all">範圍：全部歌曲</option>
+          <option value="genre">範圍：目前分類</option>
+          <option value="playlist">範圍：目前清單</option>
+        </select>
+        <button id="playScopeBtn" class="px-4 py-1.5 rounded-full bg-purple-600 hover:bg-purple-500 text-xs font-medium whitespace-nowrap">
+          <i class="fa-solid fa-play"></i> 播放範圍 <span id="scopeCount" class="opacity-70"></span>
+        </button>
+      </div>
       <select id="sortMode" class="bg-slate-800 border border-slate-700 rounded-full px-4 py-1.5 text-xs text-slate-200 focus:outline-none">
         <option value="manual">排名順序</option>
         <option value="hot">🔥 熱推排行</option>
@@ -161,6 +171,7 @@
     const LOOP_MODES = ["off", "all", "one", "shuffle", "shuffleLoop"];
     const LOOP_LABELS = { off: "循環：關", all: "循環：全部", one: "循環：單曲", shuffle: "隨機播放", shuffleLoop: "隨機循環" };
     let loopMode = "off";
+    let loopScope = "all";   // 循環範圍：all 全部　genre 目前分類　playlist 目前清單
     let playHistory = [];    // 播放過的歌曲（上一首用）
     let shufflePlayed = new Set();  // 隨機播放時已播過的歌曲
 
@@ -299,6 +310,7 @@
     }
 
     function renderSongs(list) {
+      updateScopeCount();
       musicGrid.innerHTML = '';
       if (songs.length === 0) {
         musicGrid.innerHTML = `<div class="col-span-full text-center py-16 text-slate-500">尚無歌曲，請按右上角「管理」新增</div>`;
@@ -441,7 +453,7 @@
     }
 
     function playAt(offset) {
-      if (!queue.length) queue = getFilteredSongs().map(s => s.id);
+      queue = buildQueue();
       if (!queue.length) return;
       const idx = queue.indexOf(currentId);
       const n = queue.length;
@@ -477,15 +489,35 @@
         playRandom(loopMode === "shuffleLoop");
         return;
       }
+      queue = buildQueue();
       const idx = queue.indexOf(currentId);
       if (loopMode === "all" && queue.length) { playAt(1); return; }
       if (idx >= 0 && idx < queue.length - 1) playAt(1);
       else setPlayingUI(false);
     });
 
+    // 依「循環範圍」產生播放清單
+    function buildQueue() {
+      const base = sortedAll();
+      if (loopScope === "genre" && currentGenreFilter !== "all") {
+        return base.filter(s => s.genre === currentGenreFilter).map(s => s.id);
+      }
+      if (loopScope === "playlist" && currentPlaylistFilter !== "all") {
+        const pl = playlists.find(p => p.id === currentPlaylistFilter);
+        if (pl) return pl.ids.filter(id => songs.some(s => s.id === id));
+      }
+      return base.map(s => s.id);
+    }
+
+    // 顯示目前範圍的歌曲數量
+    function updateScopeCount() {
+      const n = buildQueue().length;
+      document.getElementById('scopeCount').textContent = `（${n} 首）`;
+    }
+
     // 隨機播放：從清單中隨機挑一首（不重複，直到全部播過）
     function playRandom(forever) {
-      if (!queue.length) queue = getFilteredSongs().map(s => s.id);
+      queue = buildQueue();
       if (!queue.length) return;
       let pool = queue.filter(id => !shufflePlayed.has(id) && id !== currentId);
       if (!pool.length) {
@@ -518,6 +550,22 @@
 
     document.getElementById('nextBtn').onclick = playNext;
     document.getElementById('prevBtn').onclick = playPrev;
+
+    // 選擇循環範圍
+    document.getElementById('scopeSel').addEventListener('change', e => {
+      loopScope = e.target.value;
+      shufflePlayed.clear();
+      updateScopeCount();
+    });
+
+    // 播放範圍：從範圍內第一首開始（隨機模式則隨機開始）
+    document.getElementById('playScopeBtn').addEventListener('click', () => {
+      queue = buildQueue();
+      if (!queue.length) return;
+      shufflePlayed.clear();
+      if (loopMode === "shuffle" || loopMode === "shuffleLoop") playRandom(loopMode === "shuffleLoop");
+      else loadSong(queue[0]);
+    });
 
     // 循環按鈕：依序切換五種模式
     document.getElementById('loopBtn').addEventListener('click', () => {
