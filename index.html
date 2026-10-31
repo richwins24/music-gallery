@@ -379,7 +379,7 @@
               ${song.lyrics ? `` : ''}
               ${song.locked
                 ? `<span class="text-amber-300 flex items-center gap-1"><i class="fa-solid fa-lock"></i> 特別版</span>`
-                : `<a href="${esc(song.src)}" download="${esc(song.title)}.mp3" class="text-slate-400 hover:text-white flex items-center gap-1 transition"><i class="fa-solid fa-arrow-down-to-line"></i> 下載 MP3</a>`}
+                : `<button onclick="downloadSong(${song.id})" class="text-slate-400 hover:text-white flex items-center gap-1 transition"><i class="fa-solid fa-arrow-down-to-line"></i> 下載 MP3</button>`}
             </div>
           </div>`;
         musicGrid.appendChild(card);
@@ -912,6 +912,39 @@
     }
     document.getElementById('vaultCode').addEventListener('keydown', e => { if (e.key === 'Enter') unlockVault(); });
 
+    // ===== 下載 MP3：需要 Google 登入，每天可下載 1 次 =====
+    function todayKey() {
+      const d = new Date();
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
+    window.downloadSong = async function (id) {
+      const s = songs.find(x => x.id === id);
+      if (!s) return;
+      if (!currentUser || !sharedDb) {
+        return alert('請先按右上角「Google 登入」，登入後每天可下載 1 次 MP3');
+      }
+      const ref = sharedDb.ref('userDownloads/' + currentUser.uid + '/' + todayKey());
+      try {
+        const snap = await ref.once('value');
+        if (snap.exists()) return alert('今天已經下載過了（每天限下載 1 次）');
+        await ref.set(1);
+      } catch (e) {
+        return alert('無法確認下載次數：' + e.message);
+      }
+      const a = document.createElement('a');
+      a.href = s.src;
+      a.download = s.title + '.mp3';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    };
+
+    downloadBtn.addEventListener('click', e => {
+      e.preventDefault();
+      if (currentId !== null) downloadSong(currentId);
+    });
+
     // ===== 共用的播放與讚數（Firebase Realtime Database） =====
     // 設定好 FIREBASE_CONFIG 後，所有人看到的次數都會同步；未設定時只顯示本機紀錄
     const FIREBASE_CONFIG = {
@@ -943,7 +976,16 @@
     function updateLoginBtn() {
       const b = document.getElementById('loginBtn');
       if (!b) return;
-      b.textContent = currentUser ? '登出（' + (currentUser.displayName || '已登入') + '）' : 'Google 登入';
+      if (!currentUser) {
+        b.innerHTML = 'Google 登入';
+        return;
+      }
+      const name = currentUser.displayName || '已登入';
+      const photo = currentUser.photoURL
+        ? `<img src="${esc(currentUser.photoURL)}" alt="" referrerpolicy="no-referrer" class="w-6 h-6 rounded-full object-cover">`
+        : `<span class="w-6 h-6 rounded-full bg-purple-600 text-white flex items-center justify-center text-[11px] font-bold">${esc(name.charAt(0).toUpperCase())}</span>`;
+      b.innerHTML = `<span class="flex items-center gap-2">${photo}<span class="max-w-[7rem] truncate">${esc(name)}</span></span>`;
+      b.title = '點擊登出';
     }
 
     try {
