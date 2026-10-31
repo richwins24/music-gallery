@@ -38,7 +38,7 @@
       <div class="flex items-center gap-3 w-full md:w-auto">
         <div class="relative w-full md:w-72">
           <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
-          <input type="text" id="searchInput" placeholder="搜尋曲名、風格或 Prompt..."
+          <input type="text" id="searchInput" placeholder="搜尋曲名或分類..."
             class="w-full bg-slate-800/80 border border-slate-700 rounded-full pl-10 pr-4 py-2 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-purple-500 transition">
         </div>
         <button id="adminToggleBtn" class="shrink-0 px-4 py-2 rounded-full text-xs font-medium bg-slate-800 hover:bg-slate-700 border border-slate-700 transition">
@@ -124,6 +124,28 @@
     </div>
   </div>
 
+  <!-- 歌詞視窗 -->
+  <div id="lyricsModal" class="fixed inset-0 z-[60] bg-black/70 p-4 items-center justify-center" style="display:none">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full max-h-[80vh] flex flex-col">
+      <div class="flex items-center justify-between p-4 border-b border-slate-800">
+        <h3 id="lyricsTitle" class="font-bold text-lg"></h3>
+        <button id="lyricsClose" class="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
+      </div>
+      <div id="lyricsBody" class="p-5 overflow-y-auto whitespace-pre-line text-sm leading-7 text-slate-200"></div>
+    </div>
+  </div>
+
+  <!-- 歌詞視窗 -->
+  <div id="lyricsModal" class="hidden fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full max-h-[80vh] flex flex-col">
+      <div class="flex items-center justify-between px-5 py-4 border-b border-slate-800">
+        <h3 id="lyricsTitle" class="font-bold"></h3>
+        <button onclick="closeLyrics()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div id="lyricsBody" class="p-5 overflow-y-auto whitespace-pre-wrap leading-loose text-slate-200 text-sm"></div>
+    </div>
+  </div>
+
   <audio id="audioPlayer"></audio>
 
   <script>
@@ -133,7 +155,7 @@
     const STORE_KEY = "sg_data_v2";
 
     // ===== 狀態 =====
-    let songs = [];          // { id, title, genre, prompt, cover, src }  陣列順序 = 排名
+    let songs = [];          // { id, title, genre, cover, src }  陣列順序 = 排名
     let genres = [];
     let playlists = [];      // { id, name, ids: [] }
     let stats = {};          // { [songId]: { plays, likes } }
@@ -255,7 +277,7 @@
       const kw = searchInput.value.toLowerCase().trim();
       return getBaseList().filter(s => {
         const g = currentGenreFilter === "all" || s.genre === currentGenreFilter;
-        const k = !kw || [s.title, s.genre, s.prompt].some(v => v.toLowerCase().includes(kw));
+        const k = !kw || [s.title, s.genre].some(v => v.toLowerCase().includes(kw));
         return g && k;
       });
     }
@@ -321,9 +343,6 @@
           <div class="p-4 flex flex-col flex-grow justify-between gap-3">
             <div>
               <h3 class="font-bold text-base text-white group-hover:text-purple-400 transition">${esc(song.title)}</h3>
-              <p class="text-xs text-slate-400 mt-2 line-clamp-2 leading-relaxed bg-slate-950/50 p-2 rounded-lg border border-slate-800" title="${esc(song.prompt)}">
-                <span class="text-slate-500 font-semibold">Prompt:</span> ${esc(song.prompt)}
-              </p>
               <div class="flex items-center gap-4 mt-3 text-xs text-slate-400">
                 <span title="播放次數"><i class="fa-solid fa-headphones"></i> ${stat.plays}</span>
                 <span title="熱推分數">🔥 ${hotScore(song)}</span>
@@ -337,6 +356,10 @@
               <button onclick="playSongById(${song.id})" class="text-purple-400 hover:underline flex items-center gap-1">
                 <i class="fa-solid fa-circle-play"></i> 試聽
               </button>
+              <button onclick="showLyrics(${song.id})" class="text-slate-400 hover:text-white flex items-center gap-1 transition">
+                <i class="fa-solid fa-align-left"></i> 歌詞
+              </button>
+              ${song.lyrics ? `<button onclick="showLyrics(${song.id})" class="text-slate-400 hover:text-white flex items-center gap-1 transition"><i class="fa-solid fa-align-left"></i> 歌詞</button>` : ''}
               <a href="${esc(song.src)}" download="${esc(song.title)}.mp3" class="text-slate-400 hover:text-white flex items-center gap-1 transition">
                 <i class="fa-solid fa-arrow-down-to-line"></i> 下載 MP3
               </a>
@@ -543,7 +566,44 @@
       refreshAll();
     });
 
+    // 歌詞：讀取 songs.json 裡 lyrics 指定的 txt 檔
+    window.showLyrics = async function (id) {
+      const s = songs.find(x => x.id === id);
+      if (!s || !s.lyrics) return;
+      document.getElementById('lyricsTitle').textContent = s.title + " · 歌詞";
+      const body = document.getElementById('lyricsBody');
+      body.textContent = "載入中...";
+      document.getElementById('lyricsModal').classList.remove('hidden');
+      try {
+        const r = await fetch(s.lyrics);
+        if (!r.ok) throw new Error(r.status);
+        body.textContent = await r.text();
+      } catch (e) {
+        body.textContent = "無法載入歌詞（請確認 " + s.lyrics + " 已上傳）";
+      }
+    };
+    window.closeLyrics = function () {
+      document.getElementById('lyricsModal').classList.add('hidden');
+    };
+    document.getElementById('lyricsModal').addEventListener('click', e => {
+      if (e.target.id === 'lyricsModal') closeLyrics();
+    });
+
     document.getElementById('resetAllBtn').addEventListener('click', resetAllStats);
+
+    // ===== 歌詞 =====
+    const lyricsModal = document.getElementById('lyricsModal');
+    window.showLyrics = function (id) {
+      const s = songs.find(x => x.id === id);
+      if (!s) return;
+      document.getElementById('lyricsTitle').textContent = s.title;
+      document.getElementById('lyricsBody').textContent = (s.lyrics && s.lyrics.trim()) ? s.lyrics : '（尚未提供歌詞）';
+      lyricsModal.style.display = 'flex';
+    };
+    function closeLyrics() { lyricsModal.style.display = 'none'; }
+    document.getElementById('lyricsClose').addEventListener('click', closeLyrics);
+    lyricsModal.addEventListener('click', e => { if (e.target === lyricsModal) closeLyrics(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLyrics(); });
 
     // ===== 啟動：先讀本機資料，再讀 music/songs.json（所有人共用的歌單） =====
     async function loadRemote() {
