@@ -133,28 +133,6 @@
     </div>
   </div>
 
-  <!-- 歌詞視窗 -->
-  <div id="lyricsModal" class="fixed inset-0 z-[60] bg-black/70 p-4 items-center justify-center" style="display:none">
-    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full max-h-[80vh] flex flex-col">
-      <div class="flex items-center justify-between p-4 border-b border-slate-800">
-        <h3 id="lyricsTitle" class="font-bold text-lg"></h3>
-        <button id="lyricsClose" class="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
-      </div>
-      <div id="lyricsBody" class="p-5 overflow-y-auto whitespace-pre-line text-sm leading-7 text-slate-200"></div>
-    </div>
-  </div>
-
-  <!-- 歌詞視窗 -->
-  <div id="lyricsModal" class="hidden fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full max-h-[80vh] flex flex-col">
-      <div class="flex items-center justify-between px-5 py-4 border-b border-slate-800">
-        <h3 id="lyricsTitle" class="font-bold"></h3>
-        <button onclick="closeLyrics()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
-      </div>
-      <div id="lyricsBody" class="p-5 overflow-y-auto whitespace-pre-wrap leading-loose text-slate-200 text-sm"></div>
-    </div>
-  </div>
-
   <audio id="audioPlayer"></audio>
 
   <script>
@@ -368,10 +346,7 @@
               <button onclick="playSongById(${song.id})" class="text-purple-400 hover:underline flex items-center gap-1">
                 <i class="fa-solid fa-circle-play"></i> 試聽
               </button>
-              <button onclick="showLyrics(${song.id})" class="text-slate-400 hover:text-white flex items-center gap-1 transition">
-                <i class="fa-solid fa-align-left"></i> 歌詞
-              </button>
-              ${song.lyrics ? `<button onclick="showLyrics(${song.id})" class="text-slate-400 hover:text-white flex items-center gap-1 transition"><i class="fa-solid fa-align-left"></i> 歌詞</button>` : ''}
+              ${song.lyrics ? `` : ''}
               <a href="${esc(song.src)}" download="${esc(song.title)}.mp3" class="text-slate-400 hover:text-white flex items-center gap-1 transition">
                 <i class="fa-solid fa-arrow-down-to-line"></i> 下載 MP3
               </a>
@@ -645,44 +620,7 @@
       refreshAll();
     });
 
-    // 歌詞：讀取 songs.json 裡 lyrics 指定的 txt 檔
-    window.showLyrics = async function (id) {
-      const s = songs.find(x => x.id === id);
-      if (!s || !s.lyrics) return;
-      document.getElementById('lyricsTitle').textContent = s.title + " · 歌詞";
-      const body = document.getElementById('lyricsBody');
-      body.textContent = "載入中...";
-      document.getElementById('lyricsModal').classList.remove('hidden');
-      try {
-        const r = await fetch(s.lyrics);
-        if (!r.ok) throw new Error(r.status);
-        body.textContent = await r.text();
-      } catch (e) {
-        body.textContent = "無法載入歌詞（請確認 " + s.lyrics + " 已上傳）";
-      }
-    };
-    window.closeLyrics = function () {
-      document.getElementById('lyricsModal').classList.add('hidden');
-    };
-    document.getElementById('lyricsModal').addEventListener('click', e => {
-      if (e.target.id === 'lyricsModal') closeLyrics();
-    });
-
     document.getElementById('resetAllBtn').addEventListener('click', resetAllStats);
-
-    // ===== 歌詞 =====
-    const lyricsModal = document.getElementById('lyricsModal');
-    window.showLyrics = function (id) {
-      const s = songs.find(x => x.id === id);
-      if (!s) return;
-      document.getElementById('lyricsTitle').textContent = s.title;
-      document.getElementById('lyricsBody').textContent = (s.lyrics && s.lyrics.trim()) ? s.lyrics : '（尚未提供歌詞）';
-      lyricsModal.style.display = 'flex';
-    };
-    function closeLyrics() { lyricsModal.style.display = 'none'; }
-    document.getElementById('lyricsClose').addEventListener('click', closeLyrics);
-    lyricsModal.addEventListener('click', e => { if (e.target === lyricsModal) closeLyrics(); });
-    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLyrics(); });
 
     // ===== 啟動：先讀本機資料，再讀 music/songs.json（所有人共用的歌單） =====
     async function loadRemote() {
