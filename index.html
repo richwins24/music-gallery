@@ -61,6 +61,9 @@
       </div>
     </section>
 
+    <!-- 最近播放／繼續上次播放 -->
+    <div id="recentRow" class="flex items-center gap-2 overflow-x-auto pb-3 text-xs"></div>
+
     <!-- 清單切換 -->
     <div id="playlistChips" class="flex items-center gap-2 overflow-x-auto pb-3"></div>
 
@@ -90,6 +93,7 @@
       </div>
       <select id="sortMode" class="bg-slate-800 border border-slate-700 rounded-full px-4 py-1.5 text-xs text-slate-200 focus:outline-none">
         <option value="manual">排名順序</option>
+        <option value="name">🔤 曲名 A→Z</option>
         <option value="hot">🔥 熱推排行</option>
         <option value="plays">▶ 播放次數</option>
         <option value="likes">👍 最多讚</option>
@@ -133,10 +137,16 @@
         </div>
       </div>
       <div class="hidden md:flex items-center justify-end gap-4 w-1/4">
+        <select id="speedSel" title="播放速度" class="bg-slate-800 border border-slate-700 rounded px-1 py-0.5 text-xs text-slate-200">
+          <option value="0.75">0.75x</option><option value="1" selected>1x</option><option value="1.25">1.25x</option><option value="1.5">1.5x</option><option value="2">2x</option>
+        </select>
+        <select id="sleepSel" title="睡眠定時" class="bg-slate-800 border border-slate-700 rounded px-1 py-0.5 text-xs text-slate-200">
+          <option value="off">定時：關</option><option value="15">15 分鐘</option><option value="30">30 分鐘</option><option value="60">60 分鐘</option><option value="end">播完此首</option>
+        </select>
         <button id="lyricsBtn" class="text-xs text-slate-400 hover:text-purple-400 transition" title="顯示歌詞"><i class="fa-solid fa-align-center"></i> 歌詞</button>
         <button id="loopBtn" class="text-xs text-slate-400 hover:text-purple-400 transition" title="循環模式"><i class="fa-solid fa-repeat"></i> <span id="loopLabel">循環：關</span></button>
         <button id="waveToggleBtn" class="text-xs text-purple-400 transition" title="開關波形動畫"><i class="fa-solid fa-wave-square"></i> 波形</button>
-        <i class="fa-solid fa-volume-high text-slate-400 text-xs"></i>
+        <button id="muteBtn" class="text-slate-400 hover:text-white text-xs" title="靜音（按 M）"><i class="fa-solid fa-volume-high"></i></button>
         <input type="range" id="volumeBar" min="0" max="1" step="0.05" value="0.8" class="w-20 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500">
         <a id="downloadBtn" href="#" download class="text-slate-400 hover:text-purple-400 transition ml-2" title="下載此 MP3"><i class="fa-solid fa-arrow-down-to-line"></i></a>
       </div>
@@ -267,6 +277,7 @@
       if (sortMode === "hot") arr.sort((a, b) => hotScore(b) - hotScore(a));
       else if (sortMode === "plays") arr.sort((a, b) => st(b.id).plays - st(a.id).plays);
       else if (sortMode === "likes") arr.sort((a, b) => st(b.id).likes - st(a.id).likes);
+      else if (sortMode === "name") arr.sort((a, b) => a.title.localeCompare(b.title, 'zh-Hant'));
       return arr;
     }
 
@@ -374,6 +385,7 @@
     }
 
     function refreshAll() {
+      renderRecentRow();
       renderGenreFilters();
       renderPlaylistChips();
       renderSongs(getFilteredSongs());
@@ -386,13 +398,21 @@
       renderSongs(getFilteredSongs());
     }
 
-    function loadSong(id) {
+    function loadSong(id, startAt = 0) {
       const s = songs.find(x => x.id === id);
       if (!s) return;
       currentId = id;
       playHistory.push(id);
+      renderRecentRow();
       if (playHistory.length > 200) playHistory.shift();
       audio.src = s.src;
+      audio.playbackRate = Number(document.getElementById('speedSel').value);
+      if (startAt > 0) {
+        audio.addEventListener('loadedmetadata', function seekOnce() {
+          audio.currentTime = startAt;
+          audio.removeEventListener('loadedmetadata', seekOnce);
+        });
+      }
       currentCover.src = s.cover;
       currentTitle.innerText = s.title;
       currentGenre.innerText = `${s.genre} • Suno AI`;
@@ -480,6 +500,12 @@
     });
 
     audio.addEventListener('ended', () => {
+      if (sleepAfterSong) {
+        sleepAfterSong = false;
+        document.getElementById('sleepSel').value = 'off';
+        setPlayingUI(false);
+        return;
+      }
       if (loopMode === "one") {
         audio.currentTime = 0;
         audio.play();
@@ -643,7 +669,12 @@
     });
 
 
+    let lastSaveAt = 0;
     audio.addEventListener('timeupdate', () => {
+      if (currentId !== null && Date.now() - lastSaveAt > 3000) {
+        lastSaveAt = Date.now();
+        try { localStorage.setItem('sg_last', JSON.stringify({ id: currentId, t: audio.currentTime })); } catch (e) {}
+      }
       if (!isNaN(audio.duration)) {
         progressBar.value = (audio.currentTime / audio.duration) * 100;
         updateLyrics();
@@ -716,6 +747,94 @@
     });
 
     document.getElementById('resetAllBtn').addEventListener('click', resetAllStats);
+
+    // ===== 新增功能：速度、靜音、睡眠定時、快捷鍵 =====
+    document.getElementById('speedSel').addEventListener('change', e => {
+      audio.playbackRate = Number(e.target.value);
+    });
+
+    document.getElementById('muteBtn').addEventListener('click', () => {
+      audio.muted = !audio.muted;
+      document.getElementById('muteBtn').innerHTML = audio.muted
+        ? '<i class="fa-solid fa-volume-xmark"></i>'
+        : '<i class="fa-solid fa-volume-high"></i>';
+    });
+
+    let sleepAfterSong = false;
+    let sleepTimerId = null;
+    document.getElementById('sleepSel').addEventListener('change', e => {
+      const v = e.target.value;
+      clearTimeout(sleepTimerId);
+      sleepTimerId = null;
+      sleepAfterSong = false;
+      if (v === 'end') {
+        sleepAfterSong = true;
+      } else if (v !== 'off') {
+        sleepTimerId = setTimeout(() => {
+          audio.pause();
+          setPlayingUI(false);
+          e.target.value = 'off';
+          sleepTimerId = null;
+        }, Number(v) * 60 * 1000);
+      }
+    });
+
+    // 快捷鍵：空白鍵播放／暫停，←→ 上一首／下一首，↑↓ 音量，M 靜音
+    document.addEventListener('keydown', e => {
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+      if (e.code === 'Space') { e.preventDefault(); playPauseBtn.click(); }
+      else if (e.code === 'ArrowRight') playNext();
+      else if (e.code === 'ArrowLeft') playPrev();
+      else if (e.code === 'ArrowUp' || e.code === 'ArrowDown') {
+        e.preventDefault();
+        const d = e.code === 'ArrowUp' ? 0.05 : -0.05;
+        volumeBar.value = Math.max(0, Math.min(1, Number(volumeBar.value) + d)).toFixed(2);
+        audio.volume = Number(volumeBar.value);
+      }
+      else if (e.key === 'm' || e.key === 'M') document.getElementById('muteBtn').click();
+    });
+
+    // ===== 最近播放與繼續上次播放 =====
+    function renderRecentRow() {
+      const row = document.getElementById('recentRow');
+      const recent = [];
+      for (let i = playHistory.length - 1; i >= 0 && recent.length < 8; i--) {
+        const id = playHistory[i];
+        if (!recent.includes(id) && songs.some(s => s.id === id)) recent.push(id);
+      }
+      let html = '';
+      let last = null;
+      try { last = JSON.parse(localStorage.getItem('sg_last') || 'null'); } catch (e) {}
+      const lastSong = last && songs.find(s => s.id === last.id);
+      if (lastSong && currentId === null) {
+        html += `<button onclick="resumeLast()" class="shrink-0 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 font-medium">
+          <i class="fa-solid fa-rotate-left"></i> 繼續：${esc(lastSong.title)}（${formatTime(last.t)}）</button>`;
+      }
+      if (recent.length) {
+        html += `<span class="shrink-0 text-slate-500 ml-1">最近播放</span>` + recent.map(id => {
+          const s = songs.find(x => x.id === id);
+          return `<button onclick="playSongById(${id})" class="shrink-0 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 hover:border-slate-500">${esc(s.title)}</button>`;
+        }).join('');
+      }
+      row.innerHTML = html;
+    }
+
+    window.resumeLast = function () {
+      let last = null;
+      try { last = JSON.parse(localStorage.getItem('sg_last') || 'null'); } catch (e) {}
+      if (!last || !songs.some(s => s.id === last.id)) return;
+      queue = buildQueue();
+      loadSong(last.id, last.t || 0);
+    };
+
+    // ===== 音量記憶 =====
+    try {
+      const v = localStorage.getItem('sg_volume');
+      if (v !== null) { volumeBar.value = v; audio.volume = Number(v); }
+    } catch (e) {}
+    volumeBar.addEventListener('input', e => {
+      try { localStorage.setItem('sg_volume', e.target.value); } catch (err) {}
+    });
 
     // ===== 啟動：先讀本機資料，再讀 music/songs.json（所有人共用的歌單） =====
     async function loadRemote() {
