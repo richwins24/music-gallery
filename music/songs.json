@@ -4,20 +4,23 @@
     "title": "操場上的青春",
     "genre": "運動會",
     "cover": "music/covers/cover-01.png",
-    "src": "music/mp3/song-01.mp3"
+    "src": "music/mp3/song-01.mp3",
+    "lyrics": ""
   },
   {
     "id": 2,
     "title": "那道光",
     "genre": "運動會",
     "cover": "music/covers/cover-02.png",
-    "src": "music/mp3/song-02.mp3"
+    "src": "music/mp3/song-02.mp3",
+    "lyrics": ""
   },
   {
     "id": 3,
     "title": "把星星都送給你",
     "genre": "溫柔抒情",
     "cover": "music/covers/cover-03.png",
-    "src": "music/mp3/song-03.mp3"
+    "src": "music/mp3/song-03.mp3",
+    "lyrics": ""
   }
 ]
