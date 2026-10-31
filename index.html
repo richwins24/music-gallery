@@ -1119,7 +1119,8 @@
 
     function remoteReset(id) {
       if (!sharedDb) return;
-      sharedDb.ref('stats/' + id).set({ plays: 0, likes: 0 });
+      sharedDb.ref('stats/' + id + '/plays').set(0);
+      sharedDb.ref('stats/' + id + '/likes').set(0);
     }
 
     // ===== 登入後的個人資料：收藏、我的清單、最近播放 =====
