@@ -54,7 +54,10 @@
     <section id="adminPanel" class="hidden mb-8 bg-slate-900 border border-purple-500/40 rounded-2xl p-5">
       <div class="flex items-center justify-between mb-4">
         <h2 class="font-bold text-purple-400"><i class="fa-solid fa-unlock"></i> 管理模式</h2>
-        <button id="lockBtn" class="text-xs text-slate-400 hover:text-white">鎖定</button>
+        <div class="flex items-center gap-3">
+          <button id="resetAllBtn" class="text-xs text-amber-300 hover:text-amber-200">清除全部紀錄</button>
+          <button id="lockBtn" class="text-xs text-slate-400 hover:text-white">鎖定</button>
+        </div>
       </div>
       <div class="grid gap-6 md:grid-cols-3 text-sm">
         <div class="space-y-2">
@@ -359,6 +362,7 @@
             <button onclick="moveSong(${song.id}, 1)" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700" title="下移排名">▼</button>
             <button onclick="changeCover(${song.id})" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700">換封面</button>
             <button onclick="addToActivePlaylist(${song.id})" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700">＋清單</button>
+            <button onclick="resetStats(${song.id})" class="px-2 py-1 rounded bg-slate-800 hover:bg-amber-900 text-amber-300">清除紀錄</button>
             <button onclick="removeSong(${song.id})" class="px-2 py-1 rounded bg-slate-800 hover:bg-red-900 text-red-400">刪除</button>
           </div>` : '';
 
@@ -427,8 +431,7 @@
       currentGenre.innerText = `${s.genre} • Suno AI`;
       downloadBtn.href = s.src;
       downloadBtn.setAttribute('download', `${s.title}.mp3`);
-      st(id).plays++;
-      save();
+      if (canCount('play_' + id, 60 * 1000)) { st(id).plays++; save(); }
       audio.play();
       setPlayingUI(true);
     }
@@ -444,11 +447,42 @@
       loadSong(id);
     };
 
+    // 同一瀏覽器的冷卻時間，防止連續點擊灌水（記錄在 localStorage）
+    function canCount(key, ms) {
+      let log = {};
+      try { log = JSON.parse(localStorage.getItem('sg_cooldown') || '{}'); } catch (e) {}
+      const now = Date.now();
+      if (log[key] && now - log[key] < ms) return false;
+      log[key] = now;
+      try { localStorage.setItem('sg_cooldown', JSON.stringify(log)); } catch (e) {}
+      return true;
+    }
+
     window.likeSong = function (id) {
+      if (!canCount('like_' + id, 24 * 60 * 60 * 1000)) {
+        return alert("你已經為這首歌按過讚了（每首每 24 小時一次）");
+      }
       st(id).likes++;
       save();
       renderSongs(getFilteredSongs());
     };
+
+    // 管理員：清除單首歌的播放與讚數
+    window.resetStats = function (id) {
+      const s = songs.find(x => x.id === id);
+      if (!s || !confirm(`確定清除「${s.title}」的播放與讚數紀錄？`)) return;
+      stats[id] = { plays: 0, likes: 0 };
+      save();
+      refreshAll();
+    };
+
+    // 管理員：清除全部歌曲的紀錄
+    function resetAllStats() {
+      if (!confirm("確定清除「所有歌曲」的播放與讚數紀錄？此動作無法復原。")) return;
+      songs.forEach(s => { stats[s.id] = { plays: 0, likes: 0 }; });
+      save();
+      refreshAll();
+    }
 
     function playAt(offset) {
       if (!queue.length) queue = getFilteredSongs().map(s => s.id);
@@ -666,6 +700,8 @@
       save();
       refreshAll();
     };
+
+    document.getElementById('resetAllBtn').addEventListener('click', resetAllStats);
 
     // ===== 啟動：先讀本機資料，再讀 music/songs.json（所有人共用的歌單） =====
     async function loadRemote() {
