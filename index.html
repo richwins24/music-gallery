@@ -1075,7 +1075,6 @@
     function updateLoginBtn() {
       const b = document.getElementById('loginBtn');
       if (!b) return;
-      b.classList.toggle('hidden', !LOGIN_ENABLED);
       if (!currentUser) {
         b.innerHTML = 'Google 登入';
         return;
@@ -1101,6 +1100,9 @@
       console.warn('登入功能未連線：', e);
     }
 
+    // 登入功能目前暫停開放（敬請期待）。日後要開啟時，把 LOGIN_ENABLED 改為 true 即可
+    const LOGIN_ENABLED = false;
+
     async function doGoogleLogin() {
       if (!authRef) return alert('登入功能尚未設定');
       try {
@@ -1112,7 +1114,7 @@
 
     document.getElementById('loginBtn').addEventListener('click', () => {
       if (!LOGIN_ENABLED) {
-        showPanel('敬請期待', '<p class="text-slate-300 py-4 text-center">Google 登入功能即將開放，敬請期待！</p>');
+        showPanel('登入功能', '<p class="text-center py-6 text-slate-300 text-base">敬請期待</p>');
         return;
       }
       if (currentUser) {
