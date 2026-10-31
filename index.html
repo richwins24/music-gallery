@@ -44,7 +44,7 @@
           <input type="text" id="searchInput" placeholder="搜尋曲名或分類..."
             class="w-full bg-slate-800/80 border border-slate-700 rounded-full pl-10 pr-4 py-2 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-purple-500 transition">
         </div>
-        <button id="loginBtn" class="shrink-0 px-4 py-2 rounded-full text-xs font-medium bg-slate-800 hover:bg-slate-700 border border-slate-700 transition">Google 登入</button>
+        <button id="loginBtn" class="hidden shrink-0 px-4 py-2 rounded-full text-xs font-medium bg-slate-800 hover:bg-slate-700 border border-slate-700 transition">Google 登入</button>
         <button id="adminToggleBtn" class="shrink-0 px-4 py-2 rounded-full text-xs font-medium bg-slate-800 hover:bg-slate-700 border border-slate-700 transition">
           <i class="fa-solid fa-lock"></i> 管理
         </button>
@@ -1042,6 +1042,7 @@
     let sharedDb = null;
     let activeUserList = null;   // 目前開啟的「我的清單」key
     const ADMIN_EMAIL = "richwins24@gmail.com";
+    const LOGIN_ENABLED = false;   // 登入功能暫時關閉；要開啟時改成 true
     let userPrefs = {};
     let userFavs = new Set();
     let userLists = {};          // key -> { name, ids: { songId: true } }
@@ -1074,6 +1075,7 @@
     function updateLoginBtn() {
       const b = document.getElementById('loginBtn');
       if (!b) return;
+      b.classList.toggle('hidden', !LOGIN_ENABLED);
       if (!currentUser) {
         b.innerHTML = 'Google 登入';
         return;
@@ -1087,7 +1089,7 @@
     }
 
     try {
-      if (sharedDb && typeof firebase.auth === 'function') {
+      if (LOGIN_ENABLED && sharedDb && typeof firebase.auth === 'function') {
         authRef = firebase.auth();
         authRef.onAuthStateChanged(user => {
           currentUser = user;
@@ -1108,48 +1110,16 @@
       }
     }
 
-    // 未登入時：先顯示「未登入／已登入」功能差異，再由玩家選擇是否登入
-    function showLoginCompare() {
-      const yes = '<span class="text-emerald-300">✔</span>';
-      const no = '<span class="text-slate-500">✖</span>';
-      const rows = [
-        ['聽歌、搜尋、排序、循環', yes, yes],
-        ['查看播放與讚數', yes, yes],
-        ['按讚（每首每帳號一次）', no, yes],
-        ['下載 MP3', '<span class="text-slate-400">需登入</span>', '每天 1 次'],
-        ['收藏歌曲', no, yes],
-        ['我的清單（建立、加入、刪除）', no, yes],
-        ['最近播放紀錄', no, yes],
-        ['評分（1 到 5 星）', no, yes],
-        ['留言', '只能看', '可留言、刪除自己的'],
-        ['有新歌通知', no, yes],
-        ['年度回顧', no, yes],
-        ['特別版', '需解鎖碼', '需解鎖碼（相同）']
-      ];
-      const body = `
-        <table class="w-full text-xs">
-          <thead><tr class="text-slate-400 border-b border-slate-700">
-            <th class="text-left py-2 pr-2">功能</th><th class="py-2 px-2">未登入</th><th class="py-2 pl-2">已登入</th>
-          </tr></thead>
-          <tbody>
-            ${rows.map(([f, a, b]) => `<tr class="border-b border-slate-800"><td class="py-2 pr-2 text-slate-200">${f}</td><td class="py-2 px-2 text-center">${a}</td><td class="py-2 pl-2 text-center">${b}</td></tr>`).join('')}
-          </tbody>
-        </table>
-        <button id="cmpLoginBtn" class="mt-4 w-full py-2 rounded-lg bg-purple-600 hover:bg-purple-500 font-medium">使用 Google 登入</button>`;
-      showPanel('未登入 ／ 已登入 的差別', body);
-      document.getElementById('cmpLoginBtn').addEventListener('click', () => {
-        document.getElementById('reviewPanel').classList.add('hidden');
-        doGoogleLogin();
-      });
-    }
-
     document.getElementById('loginBtn').addEventListener('click', () => {
+      if (!LOGIN_ENABLED) {
+        showPanel('敬請期待', '<p class="text-slate-300 py-4 text-center">Google 登入功能即將開放，敬請期待！</p>');
+        return;
+      }
       if (currentUser) {
         if (confirm('確定要登出嗎？')) authRef && authRef.signOut();
         return;
       }
-      if (!authRef) return alert('登入功能尚未設定');
-      showLoginCompare();
+      doGoogleLogin();
     });
 
     function remoteInc(id, field) {
