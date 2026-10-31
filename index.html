@@ -89,6 +89,14 @@
     <div id="musicGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"></div>
   </main>
 
+  <!-- 歌詞面板（逐行跟隨播放時間） -->
+  <div id="lyricsPanel" class="hidden fixed bottom-24 left-0 right-0 z-40 px-4">
+    <div class="max-w-2xl mx-auto bg-slate-900/95 border border-purple-500/40 rounded-2xl p-4 shadow-2xl">
+      <p id="lyricsTitle" class="text-xs text-slate-400 text-center mb-2"></p>
+      <div id="lyricsBox" class="h-48 overflow-y-auto text-center space-y-3 scroll-smooth"></div>
+    </div>
+  </div>
+
   <!-- 底部播放器 -->
   <div class="fixed bottom-0 left-0 right-0 bg-slate-900/95 border-t border-slate-800 backdrop-blur-md px-4 py-3 z-50">
     <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
@@ -115,6 +123,7 @@
         </div>
       </div>
       <div class="hidden md:flex items-center justify-end gap-4 w-1/4">
+        <button id="lyricsBtn" class="text-xs text-slate-400 hover:text-purple-400 transition" title="顯示歌詞"><i class="fa-solid fa-align-center"></i> 歌詞</button>
         <button id="loopBtn" class="text-xs text-slate-400 hover:text-purple-400 transition" title="循環模式"><i class="fa-solid fa-repeat"></i> <span id="loopLabel">循環：關</span></button>
         <button id="waveToggleBtn" class="text-xs text-purple-400 transition" title="開關波形動畫"><i class="fa-solid fa-wave-square"></i> 波形</button>
         <i class="fa-solid fa-volume-high text-slate-400 text-xs"></i>
@@ -167,6 +176,9 @@
     let currentPlaylistFilter = "all";
     let sortMode = "manual";
     let waveOn = true;
+    let lyricsOn = false;
+    let currentLyrics = [];   // [{ time, text }]
+    let activeLyric = -1;
     let loopMode = "off";    // off：不循環　all：全部循環　one：單曲循環
 
     // ===== DOM =====
@@ -390,6 +402,7 @@
       currentCover.src = s.cover;
       currentTitle.innerText = s.title;
       currentGenre.innerText = `${s.genre} • Suno AI`;
+      renderLyrics(s);
       downloadBtn.href = s.src;
       downloadBtn.setAttribute('download', `${s.title}.mp3`);
       if (canCount('play_' + id, 60 * 1000)) { st(id).plays++; save(); }
@@ -486,6 +499,50 @@
       else setPlayingUI(false);
     });
 
+    // ===== 歌詞（逐行跟隨播放時間） =====
+    function renderLyrics(song) {
+      const box = document.getElementById('lyricsBox');
+      document.getElementById('lyricsTitle').textContent = song ? song.title : '';
+      currentLyrics = Array.isArray(song && song.lyrics) ? song.lyrics : [];
+      activeLyric = -1;
+      if (!currentLyrics.length) {
+        box.innerHTML = `<p class="text-slate-500 text-sm pt-16">尚無歌詞</p>`;
+        return;
+      }
+      box.innerHTML = currentLyrics.map((l, i) =>
+        `<p data-i="${i}" class="lyric-line text-slate-500 transition-colors duration-300">${esc(l.text)}</p>`
+      ).join('');
+    }
+
+    function updateLyrics() {
+      if (!lyricsOn || !currentLyrics.length) return;
+      const t = audio.currentTime;
+      let idx = -1;
+      for (let i = 0; i < currentLyrics.length; i++) {
+        if (currentLyrics[i].time <= t) idx = i; else break;
+      }
+      if (idx === activeLyric) return;
+      activeLyric = idx;
+      const box = document.getElementById('lyricsBox');
+      box.querySelectorAll('.lyric-line').forEach(p => {
+        const on = Number(p.dataset.i) === idx;
+        p.classList.toggle('text-white', on);
+        p.classList.toggle('text-lg', on);
+        p.classList.toggle('font-bold', on);
+        p.classList.toggle('text-slate-500', !on);
+      });
+      const cur = box.querySelector(`[data-i="${idx}"]`);
+      if (cur) cur.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+
+    document.getElementById('lyricsBtn').addEventListener('click', () => {
+      lyricsOn = !lyricsOn;
+      document.getElementById('lyricsPanel').classList.toggle('hidden', !lyricsOn);
+      document.getElementById('lyricsBtn').classList.toggle('text-purple-400', lyricsOn);
+      document.getElementById('lyricsBtn').classList.toggle('text-slate-400', !lyricsOn);
+      if (lyricsOn) updateLyrics();
+    });
+
     // 切換循環模式：關 → 全部循環 → 單曲循環 → 關
     document.getElementById('loopBtn').addEventListener('click', () => {
       const modes = { off: "循環：關", all: "循環：全部", one: "循環：單曲" };
@@ -498,6 +555,7 @@
     audio.addEventListener('timeupdate', () => {
       if (!isNaN(audio.duration)) {
         progressBar.value = (audio.currentTime / audio.duration) * 100;
+        updateLyrics();
         currentTimeText.innerText = formatTime(audio.currentTime);
         durationTimeText.innerText = formatTime(audio.duration);
       }
