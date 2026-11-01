@@ -23,6 +23,37 @@
     #playerBar.mini { padding-top: 6px; padding-bottom: 6px; }
     #playerBar.mini .full-only, #playerBar.mini .extra-controls, #playerBar.mini #currentCover, #playerBar.mini #waveBar { display: none !important; }
     #playerBar.mini #currentTitle { font-size: 12px; }
+
+    /* ===== 介面優化（電腦與手機） ===== */
+    html { scroll-behavior: smooth; }
+    button, a, select, input { -webkit-tap-highlight-color: transparent; }
+    #genreFilters, #playlistChips { scrollbar-width: none; }
+    #genreFilters::-webkit-scrollbar, #playlistChips::-webkit-scrollbar { display: none; }
+    #genreFilters button, #playlistChips button { white-space: nowrap; }
+    #musicGrid { gap: 1.25rem; }
+    #musicGrid h3 { overflow-wrap: anywhere; }
+    #playerBar button { min-width: 36px; min-height: 36px; display: inline-flex; align-items: center; justify-content: center; }
+    #playerBar #currentTitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #playerBar.mini { padding-top: 6px; padding-bottom: 6px; }
+    .genre-btn { min-height: 32px; }
+    @media (min-width: 768px) {
+      main { padding-top: 24px; }
+      header > div { max-width: 80rem; }
+    }
+    @media (max-width: 767px) {
+      body { padding-bottom: 9.5rem; }
+      header h1 { font-size: 1.05rem; }
+      header p { font-size: 11px; }
+      main { padding-left: 12px; padding-right: 12px; }
+      #musicGrid { grid-template-columns: 1fr !important; gap: 1rem; }
+      #genreFilters button, #playlistChips button { padding-top: 6px; padding-bottom: 6px; }
+      #playerBar { padding: 8px 12px; }
+      #playerBar .full-only input[type=range] { height: 6px; }
+      #lyricsPanel, #commentPanel, #reviewPanel { bottom: 9.5rem; }
+      #lyricsBox { height: 9rem; }
+      #commentList { height: 11rem; }
+      #adminPanel .grid { gap: 1rem; }
+    }
   </style>
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-database-compat.js"></script>
