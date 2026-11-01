@@ -33,6 +33,17 @@
     #lyricsBox.fx-wave .lyric-line.on { animation: lyricWave 1.2s ease-in-out infinite; }
     #lyricsBox.fx-rainbow .lyric-line.on { background: linear-gradient(90deg, #f472b6, #facc15, #34d399, #60a5fa, #c084fc); -webkit-background-clip: text; background-clip: text; color: transparent; }
     @keyframes lyricWave { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+    @keyframes lyricNeon { 0%, 18%, 22%, 62%, 64%, 100% { text-shadow: 0 0 6px var(--played), 0 0 14px var(--played), 0 0 28px var(--played); opacity: 1; } 20%, 63% { text-shadow: none; opacity: .6; } }
+    @keyframes lyricZoom { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    @keyframes lyricSparkle { 0%, 100% { text-shadow: 0 0 4px #fff; } 50% { text-shadow: 0 0 14px #fde68a, 0 0 24px var(--played); } }
+    @keyframes lyricFlow { from { background-position: 0% 50%; } to { background-position: 200% 50%; } }
+    @keyframes lyricTyping { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+    #lyricsBox.fx-neon .lyric-line.on { animation: lyricNeon 2s linear infinite; }
+    #lyricsBox.fx-zoom .lyric-line.on { animation: lyricZoom .6s ease-out both; }
+    #lyricsBox.fx-3d .lyric-line.on { text-shadow: 1px 1px 0 #1e1b4b, 2px 2px 0 #1e1b4b, 3px 3px 0 #1e1b4b, 4px 4px 8px rgba(0,0,0,.6); }
+    #lyricsBox.fx-sparkle .lyric-line.on { animation: lyricSparkle 1.4s ease-in-out infinite; }
+    #lyricsBox.fx-flow .lyric-line.on { background: linear-gradient(90deg, var(--played), #f472b6, #60a5fa, var(--played)); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: lyricFlow 3s linear infinite; }
+    #lyricsBox.fx-typing .lyric-line.on { animation: lyricTyping .9s steps(16, end) both; }
 
     /* ===== 介面優化（電腦與手機） ===== */
     html { scroll-behavior: smooth; }
@@ -182,7 +193,7 @@
 
   <!-- 歌詞面板（逐行跟隨播放時間） -->
   <div id="lyricsPanel" class="hidden fixed bottom-24 left-0 right-0 z-40 px-4">
-    <div class="max-w-2xl mx-auto bg-slate-900/95 border border-purple-500/40 rounded-2xl p-4 shadow-2xl">
+    <div class="max-w-2xl mx-auto bg-slate-900 border border-purple-500/40 rounded-2xl p-4 shadow-2xl">
       <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
         <p id="lyricsTitle" class="text-xs text-slate-400"></p>
         <div class="flex items-center gap-2 text-[11px] text-slate-400">
@@ -194,6 +205,12 @@
             <option value="pop">跳動</option>
             <option value="wave">波浪</option>
             <option value="rainbow">彩虹</option>
+            <option value="neon">霓虹閃爍</option>
+            <option value="zoom">放大淡入</option>
+            <option value="3d">立體陰影</option>
+            <option value="sparkle">閃爍星光</option>
+            <option value="flow">流動漸層</option>
+            <option value="typing">打字機</option>
           </select>
         </div>
       </div>
