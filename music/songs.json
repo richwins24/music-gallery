@@ -22,5 +22,13 @@
     "cover": "music/covers/cover-03.png",
     "src_enc": "music/locked/song-03.enc",
     "locked": true
+  },
+  {
+    "id": 4,
+    "title": "雨落下以後",
+    "genre": "特別版",
+    "cover": "music/covers/cover-04.png",
+    "src_enc": "music/locked/song-04.enc",
+    "locked": true
   }
 ]
