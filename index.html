@@ -223,7 +223,7 @@
   <!-- 底部播放器 -->
   <div id="playerBar" class="fixed bottom-0 left-0 right-0 bg-slate-900/95 border-t border-slate-800 backdrop-blur-md px-4 py-3 z-50 relative">
     <button id="collapseBtn" class="absolute -top-3 right-4 px-3 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-xs text-slate-300 hover:bg-slate-700" title="收起／展開播放器"><i class="fa-solid fa-chevron-down"></i> 收起</button>
-    <div id="lyricsPanel" class="hidden absolute bottom-full left-0 right-0 px-3 pb-2 z-40">
+    <div id="lyricsPanel" class="absolute bottom-full left-0 right-0 px-3 pb-2 z-40">
     <div class="max-w-2xl mx-auto border border-purple-500/40 rounded-2xl p-4 shadow-2xl" style="background:#0f172a">
       <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
         <p id="lyricsTitle" class="text-xs text-slate-400"></p>
@@ -309,7 +309,7 @@
     let currentPlaylistFilter = "all";
     let sortMode = "manual";
     let waveOn = true;
-    let lyricsOn = false;
+    let lyricsOn = true;   // 歌詞預設開啟
     let currentLyrics = [];   // [{ time, text }]
     let activeLyric = -1;
     // 循環模式：關（播完停止）／全部循環／單曲循環
@@ -493,7 +493,7 @@
               ${[5, 4, 3, 2, 1].map(n => `<option value="${n}" ${ri.mine === n ? 'selected' : ''}>${n} ★</option>`).join('')}
             </select>
             <span class="text-amber-300">★ ${ri.count ? ri.avg.toFixed(1) : '–'} (${ri.count})</span>
-            <button onclick="openComments(${song.id})" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300"><i class="fa-regular fa-comment"></i> 留言</button>
+            <button onclick="openComments(${song.id})" class="login-only px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300"><i class="fa-regular fa-comment"></i> 留言</button>
             ${activeUserList ? `<button onclick="toggleInUserList(${song.id})" class="login-only px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">${inList ? '－ 從清單移除' : '＋ 加入清單'}</button>` : ''}
           </div>`;
 
@@ -813,6 +813,8 @@
     document.getElementById('lyricFx').addEventListener('change', e => saveLyricStyle({ fx: e.target.value }));
     applyLyricStyle();
 
+    document.getElementById('lyricsBtn').classList.add('text-purple-400');
+    document.getElementById('lyricsBtn').classList.remove('text-slate-400');
     document.getElementById('lyricsBtn').addEventListener('click', () => {
       lyricsOn = !lyricsOn;
       document.getElementById('lyricsPanel').classList.toggle('hidden', !lyricsOn);
@@ -1409,6 +1411,13 @@
       if (!currentUser || !sharedDb) return alert('請先按「Google 登入」才能留言');
       const lastAt = Number(localStorage.getItem('sg_lastComment') || 0);
       if (Date.now() - lastAt < 30 * 1000) return alert('留言太頻繁，請 30 秒後再試');
+      // 每首歌最多 3 則留言：超過時刪除最舊的一則
+      const snap = await sharedDb.ref('comments/' + commentSongId).once('value');
+      const existing = Object.entries(snap.val() || {}).sort((a, b) => (a[1].time || 0) - (b[1].time || 0));
+      while (existing.length >= 3) {
+        const [oldId] = existing.shift();
+        await sharedDb.ref('comments/' + commentSongId + '/' + oldId).remove();
+      }
       await sharedDb.ref('comments/' + commentSongId).push().set({
         uid: currentUser.uid,
         name: currentUser.displayName || '使用者',
