@@ -32,19 +32,11 @@
     #lyricsBox.fx-glow .lyric-line.on { text-shadow: 0 0 10px var(--played), 0 0 20px var(--played); }
     #lyricsBox.fx-pop .lyric-line.on { transform: translateY(-2px); }
     #lyricsBox.fx-wave .lyric-line.on { animation: lyricWave 1.2s ease-in-out infinite; }
-    #lyricsBox.fx-rainbow .lyric-line.on { background: linear-gradient(90deg, #f472b6, #facc15, #34d399, #60a5fa, #c084fc); -webkit-background-clip: text; background-clip: text; color: transparent; }
     @keyframes lyricWave { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
     @keyframes lyricNeon { 0%, 18%, 22%, 62%, 64%, 100% { text-shadow: 0 0 6px var(--played), 0 0 14px var(--played), 0 0 28px var(--played); opacity: 1; } 20%, 63% { text-shadow: none; opacity: .6; } }
     @keyframes lyricZoom { from { transform: translateY(6px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-    @keyframes lyricSparkle { 0%, 100% { text-shadow: 0 0 4px #fff; } 50% { text-shadow: 0 0 14px #fde68a, 0 0 24px var(--played); } }
-    @keyframes lyricFlow { from { background-position: 0% 50%; } to { background-position: 200% 50%; } }
-    @keyframes lyricTyping { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
     #lyricsBox.fx-neon .lyric-line.on { animation: lyricNeon 2s linear infinite; }
     #lyricsBox.fx-zoom .lyric-line.on { animation: lyricZoom .6s ease-out both; }
-    #lyricsBox.fx-3d .lyric-line.on { text-shadow: 1px 1px 0 #1e1b4b, 2px 2px 0 #1e1b4b, 3px 3px 0 #1e1b4b, 4px 4px 8px rgba(0,0,0,.6); }
-    #lyricsBox.fx-sparkle .lyric-line.on { animation: lyricSparkle 1.4s ease-in-out infinite; }
-    #lyricsBox.fx-flow .lyric-line.on { background: linear-gradient(90deg, var(--played), #f472b6, #60a5fa, var(--played)); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: lyricFlow 3s linear infinite; }
-    #lyricsBox.fx-typing .lyric-line.on { animation: lyricTyping .9s steps(16, end) both; }
 
     /* ===== 介面優化（電腦與手機） ===== */
     html { scroll-behavior: smooth; }
@@ -242,20 +234,13 @@
       <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
         <p id="lyricsTitle" class="text-xs text-slate-400"></p>
         <div class="flex items-center gap-2 text-[11px] text-slate-400">
-          <label class="flex items-center gap-1">已唱<input id="lyricPlayedColor" type="color" value="#c084fc" class="w-6 h-6 p-0 border-0 bg-transparent"></label>
-          <label class="flex items-center gap-1">未唱<input id="lyricTodoColor" type="color" value="#64748b" class="w-6 h-6 p-0 border-0 bg-transparent"></label>
           <select id="lyricFx" class="bg-slate-800 border border-slate-700 rounded px-1 py-0.5 text-[11px] text-slate-200">
             <option value="none">無特效</option>
             <option value="glow">發光</option>
             <option value="pop">跳動</option>
             <option value="wave">波浪</option>
-            <option value="rainbow">彩虹</option>
             <option value="neon">霓虹閃爍</option>
             <option value="zoom">放大淡入</option>
-            <option value="3d">立體陰影</option>
-            <option value="sparkle">閃爍星光</option>
-            <option value="flow">流動漸層</option>
-            <option value="typing">打字機</option>
           </select>
         </div>
       </div>
@@ -814,21 +799,17 @@
     }
     function applyLyricStyle() {
       const st = getLyricStyle();
-      const played = st.played || '#c084fc', todo = st.todo || '#64748b', fx = st.fx || 'none';
+      const played = '#c084fc', todo = '#64748b', fx = st.fx || 'none';   // 文字顏色固定
       const box = document.getElementById('lyricsBox');
       box.style.setProperty('--played', played);
       box.style.setProperty('--todo', todo);
       box.className = 'h-48 overflow-y-auto text-center space-y-3 scroll-smooth fx-' + fx;
-      document.getElementById('lyricPlayedColor').value = played;
-      document.getElementById('lyricTodoColor').value = todo;
       document.getElementById('lyricFx').value = fx;
     }
     function saveLyricStyle(patch) {
       try { localStorage.setItem('sg_lyric_style', JSON.stringify({ ...getLyricStyle(), ...patch })); } catch (e) {}
       applyLyricStyle();
     }
-    document.getElementById('lyricPlayedColor').addEventListener('input', e => saveLyricStyle({ played: e.target.value }));
-    document.getElementById('lyricTodoColor').addEventListener('input', e => saveLyricStyle({ todo: e.target.value }));
     document.getElementById('lyricFx').addEventListener('change', e => saveLyricStyle({ fx: e.target.value }));
     applyLyricStyle();
 
