@@ -245,6 +245,7 @@
           </select>
         </div>
       </div>
+      <p id="songIntro" class="hidden text-xs text-slate-300 mb-2 leading-relaxed"></p>
       <div id="lyricsBox" class="h-48 overflow-y-auto text-center space-y-3 scroll-smooth"></div>
     </div>
   </div>
@@ -517,6 +518,7 @@
           <div class="p-4 flex flex-col flex-grow justify-between gap-3">
             <div>
               <h3 class="font-bold text-base text-white group-hover:text-purple-400 transition">${esc(song.title)}</h3>
+              ${song.intro ? `<p class="text-xs text-slate-300 mt-1 leading-relaxed line-clamp-2">${esc(song.intro)}</p>` : ''}
               <div class="flex items-center gap-4 mt-3 text-xs text-slate-400">
                 <span title="播放次數"><i class="fa-solid fa-headphones"></i> ${stat.plays}</span>
                 <span title="熱推分數">🔥 ${hotScore(song)}</span>
@@ -759,6 +761,9 @@
       const token = ++lyricsToken;
       const box = document.getElementById('lyricsBox');
       document.getElementById('lyricsTitle').textContent = song ? song.title : '';
+      const introEl = document.getElementById('songIntro');
+      introEl.textContent = song && song.intro ? song.intro : '';
+      introEl.classList.toggle('hidden', !(song && song.intro));
       const lines = await getLyrics(song);
       if (token !== lyricsToken) return;   // 已切換到其他歌，略過舊的結果
       currentLyrics = lines;
@@ -1064,7 +1069,7 @@
         for (const m of lockedMeta) {
           try {
             const src = await decryptVaultFile(code, m.src_enc);
-            unlocked.push({ id: m.id, title: m.title, genre: m.genre, prompt: '', cover: m.cover || DEFAULT_COVER, src });
+            unlocked.push({ id: m.id, title: m.title, genre: m.genre, intro: m.intro || '', prompt: '', cover: m.cover || DEFAULT_COVER, src });
           } catch (err) {
             console.warn('此檔案無法用這組解鎖碼開啟：', m.title, err);
           }
@@ -1415,8 +1420,13 @@
       const snap = await sharedDb.ref('comments/' + commentSongId).once('value');
       const existing = Object.entries(snap.val() || {}).sort((a, b) => (a[1].time || 0) - (b[1].time || 0));
       while (existing.length >= 3) {
-        const [oldId] = existing.shift();
-        await sharedDb.ref('comments/' + commentSongId + '/' + oldId).remove();
+        const [oldId, oldC] = existing.shift();
+        try {
+          await sharedDb.ref('comments/' + commentSongId + '/' + oldId).remove();
+        } catch (err) {
+          // 別人的留言不能由你刪除，就略過，不影響新留言送出
+          if (!(oldC && currentUser && oldC.uid === currentUser.uid)) console.warn('無法刪除舊留言：', err);
+        }
       }
       await sharedDb.ref('comments/' + commentSongId).push().set({
         uid: currentUser.uid,
