@@ -174,7 +174,8 @@
   </div>
 
   <!-- 底部播放器 -->
-  <div id="playerBar" class="fixed bottom-0 left-0 right-0 bg-slate-900/95 border-t border-slate-800 backdrop-blur-md px-4 py-3 z-50">
+  <div id="playerBar" class="fixed bottom-0 left-0 right-0 bg-slate-900/95 border-t border-slate-800 backdrop-blur-md px-4 py-3 z-50 relative">
+    <button id="collapseBtn" class="absolute -top-3 right-4 px-3 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-xs text-slate-300 hover:bg-slate-700" title="收起／展開播放器"><i class="fa-solid fa-chevron-down"></i> 收起</button>
     <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
       <div class="flex items-center gap-3 w-full md:w-1/4">
         <img id="currentCover" src="" alt="" class="w-12 h-12 rounded-lg object-cover bg-slate-800">
@@ -1543,11 +1544,20 @@
       ref.set(true);
     };
 
-    // 播放器迷你化：往下捲動時收合成一條
-    function updateMiniPlayer() {
-      document.getElementById('playerBar').classList.toggle('mini', window.scrollY > 200);
+    // 播放器收起／展開（手動按鈕，記住上次的選擇）
+    function setPlayerCollapsed(on) {
+      const bar = document.getElementById('playerBar');
+      const btn = document.getElementById('collapseBtn');
+      bar.classList.toggle('mini', on);
+      btn.innerHTML = on
+        ? '<i class="fa-solid fa-chevron-up"></i> 展開'
+        : '<i class="fa-solid fa-chevron-down"></i> 收起';
+      try { localStorage.setItem('sg_player_mini', on ? '1' : '0'); } catch (e) {}
     }
-    window.addEventListener('scroll', updateMiniPlayer, { passive: true });
+    document.getElementById('collapseBtn').addEventListener('click', () => {
+      setPlayerCollapsed(!document.getElementById('playerBar').classList.contains('mini'));
+    });
+    try { setPlayerCollapsed(localStorage.getItem('sg_player_mini') === '1'); } catch (e) {}
 
     // ===== 啟動：先讀本機資料，再讀 music/songs.json（所有人共用的歌單） =====
     async function loadRemote() {
