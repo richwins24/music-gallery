@@ -25,16 +25,17 @@
     #playerBar.mini #currentTitle { font-size: 12px; }
 
     /* ===== 歌詞整句效果 ===== */
-    #lyricsBox { --played: #c084fc; --todo: #64748b; }
+    #lyricsBox { --played: #c084fc; --todo: #64748b; height: 12rem; overflow-y: auto; }
+    #lyricsBox .lyric-line { transform-origin: center; }
     .lyric-line { color: var(--todo); opacity: .55; transition: color .3s, opacity .3s, transform .3s; }
-    .lyric-line.on { color: var(--played); opacity: 1; font-size: 1.125rem; font-weight: 700; }
+    .lyric-line.on { color: var(--played); opacity: 1; }
     #lyricsBox.fx-glow .lyric-line.on { text-shadow: 0 0 10px var(--played), 0 0 20px var(--played); }
-    #lyricsBox.fx-pop .lyric-line.on { transform: scale(1.08); }
+    #lyricsBox.fx-pop .lyric-line.on { transform: translateY(-2px); }
     #lyricsBox.fx-wave .lyric-line.on { animation: lyricWave 1.2s ease-in-out infinite; }
     #lyricsBox.fx-rainbow .lyric-line.on { background: linear-gradient(90deg, #f472b6, #facc15, #34d399, #60a5fa, #c084fc); -webkit-background-clip: text; background-clip: text; color: transparent; }
     @keyframes lyricWave { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
     @keyframes lyricNeon { 0%, 18%, 22%, 62%, 64%, 100% { text-shadow: 0 0 6px var(--played), 0 0 14px var(--played), 0 0 28px var(--played); opacity: 1; } 20%, 63% { text-shadow: none; opacity: .6; } }
-    @keyframes lyricZoom { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    @keyframes lyricZoom { from { transform: translateY(6px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
     @keyframes lyricSparkle { 0%, 100% { text-shadow: 0 0 4px #fff; } 50% { text-shadow: 0 0 14px #fde68a, 0 0 24px var(--played); } }
     @keyframes lyricFlow { from { background-position: 0% 50%; } to { background-position: 200% 50%; } }
     @keyframes lyricTyping { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
