@@ -2,6 +2,7 @@
   {
     "id": 1,
     "title": "操場上的青春",
+    "intro": "運動會前的每個清晨，我們在操場上一起揮灑汗水。那些笑聲與努力，會成為我們共同的青春刻痕。",
     "genre": "運動會",
     "cover": "music/covers/cover-01.png",
     "src": "music/mp3/song-01.mp3",
@@ -10,6 +11,7 @@
   {
     "id": 2,
     "title": "那道光",
+    "intro": "就算天黑了，心裡那道光依然不熄滅。獻給一起走過這段路的我們，記得曾經的昨天。",
     "genre": "運動會",
     "cover": "music/covers/cover-02.png",
     "src_enc": "music/locked/song-02.enc",
@@ -18,6 +20,7 @@
   {
     "id": 3,
     "title": "把星星都送給你",
+    "intro": "晚風、街燈與星光，都是為了一句簡單的告白：我想把星星都送給你。一首溫柔的情歌。",
     "genre": "溫柔抒情",
     "cover": "music/covers/cover-03.png",
     "src_enc": "music/locked/song-03.enc",
@@ -26,6 +29,7 @@
   {
     "id": 4,
     "title": "雨落下以後",
+    "intro": "雨落下以後，天空會慢慢放晴。這首歌記錄了淋過雨之後，仍然願意相信明天的心情。",
     "genre": "特別版",
     "cover": "music/covers/cover-04.png",
     "src_enc": "music/locked/song-04.enc",
