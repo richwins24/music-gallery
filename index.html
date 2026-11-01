@@ -245,7 +245,7 @@
           </select>
         </div>
       </div>
-      <p id="songIntro" class="hidden text-xs text-slate-300 mb-2 leading-relaxed"></p>
+      <p id="songIntro" class="hidden text-xs text-slate-300 mb-2 leading-relaxed line-clamp-2 cursor-pointer" title="點一下展開／收起" onclick="this.classList.toggle('line-clamp-2')"></p>
       <div id="lyricsBox" class="h-48 overflow-y-auto text-center space-y-3 scroll-smooth"></div>
     </div>
   </div>
@@ -518,7 +518,7 @@
           <div class="p-4 flex flex-col flex-grow justify-between gap-3">
             <div>
               <h3 class="font-bold text-base text-white group-hover:text-purple-400 transition">${esc(song.title)}</h3>
-              ${song.intro ? `<p class="text-xs text-slate-300 mt-1 leading-relaxed line-clamp-2">${esc(song.intro)}</p>` : ''}
+              ${song.intro ? `<div class="mt-1"><p id="intro-${song.id}" class="text-xs text-slate-300 leading-relaxed ${expandedIntros.has(song.id) ? '' : 'line-clamp-2'}">${esc(song.intro)}</p><button onclick="toggleIntro(${song.id})" class="text-[11px] text-purple-400 hover:underline mt-1">${expandedIntros.has(song.id) ? '收起簡介' : '展開簡介'}</button></div>` : ''}
               <div class="flex items-center gap-4 mt-3 text-xs text-slate-400">
                 <span title="播放次數"><i class="fa-solid fa-headphones"></i> ${stat.plays}</span>
                 <span title="熱推分數">🔥 ${hotScore(song)}</span>
@@ -1670,6 +1670,13 @@
     });
     try { setPlayerCollapsed(localStorage.getItem('sg_player_mini') === '1'); } catch (e) {}
 
+
+    // 歌曲簡介：點「展開簡介」可展開或收起（會記住狀態）
+    const expandedIntros = new Set();
+    window.toggleIntro = function (id) {
+      expandedIntros.has(id) ? expandedIntros.delete(id) : expandedIntros.add(id);
+      renderSongs(getFilteredSongs());
+    };
 
     // ===== 啟動：先讀本機資料，再讀 music/songs.json（所有人共用的歌單） =====
     async function loadRemote() {
