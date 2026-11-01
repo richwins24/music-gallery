@@ -194,7 +194,7 @@
 
   <!-- 歌詞面板（逐行跟隨播放時間） -->
   <div id="lyricsPanel" class="hidden fixed bottom-24 left-0 right-0 z-40 px-4">
-    <div class="max-w-2xl mx-auto bg-slate-900 border border-purple-500/40 rounded-2xl p-4 shadow-2xl">
+    <div class="max-w-2xl mx-auto border border-purple-500/40 rounded-2xl p-4 shadow-2xl" style="background:#0f172a">
       <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
         <p id="lyricsTitle" class="text-xs text-slate-400"></p>
         <div class="flex items-center gap-2 text-[11px] text-slate-400">
@@ -1650,6 +1650,15 @@
       setPlayerCollapsed(!document.getElementById('playerBar').classList.contains('mini'));
     });
     try { setPlayerCollapsed(localStorage.getItem('sg_player_mini') === '1'); } catch (e) {}
+
+    // 歌詞面板永遠貼在播放器上方，不會被播放器蓋住
+    function placeLyricsPanel() {
+      const bar = document.getElementById('playerBar');
+      document.getElementById('lyricsPanel').style.bottom = (bar.offsetHeight + 10) + 'px';
+    }
+    window.addEventListener('resize', placeLyricsPanel);
+    document.getElementById('collapseBtn').addEventListener('click', () => setTimeout(placeLyricsPanel, 0));
+    placeLyricsPanel();
 
     // ===== 啟動：先讀本機資料，再讀 music/songs.json（所有人共用的歌單） =====
     async function loadRemote() {
