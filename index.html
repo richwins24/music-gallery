@@ -492,7 +492,7 @@
               <option value="">${ri.mine ? '取消評分（我：' + ri.mine + '★）' : '評分'}</option>
               ${[5, 4, 3, 2, 1].map(n => `<option value="${n}" ${ri.mine === n ? 'selected' : ''}>${n} ★</option>`).join('')}
             </select>
-            <span class="text-amber-300">★ ${ri.count ? ri.avg.toFixed(1) : '–'} (${ri.count})</span>
+            <span class="login-only text-amber-300">★ ${ri.count ? ri.avg.toFixed(1) : '–'} (${ri.count})</span>
             <button onclick="openComments(${song.id})" class="login-only px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300"><i class="fa-regular fa-comment"></i> 留言</button>
             ${activeUserList ? `<button onclick="toggleInUserList(${song.id})" class="login-only px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">${inList ? '－ 從清單移除' : '＋ 加入清單'}</button>` : ''}
           </div>`;
@@ -530,7 +530,7 @@
             </div>
             <div class="flex items-center justify-between pt-2 border-t border-slate-800/60 text-xs">
               <button onclick="playSongById(${song.id})" class="text-purple-400 hover:underline flex items-center gap-1">
-                <i class="fa-solid fa-circle-play"></i> 試聽
+                <i class="fa-solid fa-circle-play"></i> 播放全曲
               </button>
               ${song.lyrics ? `` : ''}
               ${song.locked
