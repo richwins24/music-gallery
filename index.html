@@ -812,6 +812,16 @@
     document.getElementById('lyricFx').addEventListener('change', e => saveLyricStyle({ fx: e.target.value }));
     applyLyricStyle();
 
+    // 播放歌曲時自動開啟歌詞面板
+    function openLyricsPanel(on) {
+      lyricsOn = on;
+      document.getElementById('lyricsPanel').classList.toggle('hidden', !on);
+      document.getElementById('lyricsBtn').classList.toggle('text-purple-400', on);
+      document.getElementById('lyricsBtn').classList.toggle('text-slate-400', !on);
+      if (on) updateLyrics();
+    }
+    audio.addEventListener('play', () => openLyricsPanel(true));
+
     document.getElementById('lyricsBtn').classList.add('text-purple-400');
     document.getElementById('lyricsBtn').classList.remove('text-slate-400');
     document.getElementById('lyricsBtn').addEventListener('click', () => {
