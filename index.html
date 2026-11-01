@@ -821,6 +821,11 @@
       if (on) updateLyrics();
     }
     audio.addEventListener('play', () => openLyricsPanel(true));
+    // 進入網頁時也預設開啟歌詞面板
+    openLyricsPanel(true);
+    if (!document.getElementById('lyricsBox').innerHTML.trim()) {
+      document.getElementById('lyricsBox').innerHTML = '<p class="text-slate-500 text-sm pt-12">播放歌曲後顯示歌詞</p>';
+    }
 
     document.getElementById('lyricsBtn').classList.add('text-purple-400');
     document.getElementById('lyricsBtn').classList.remove('text-slate-400');
