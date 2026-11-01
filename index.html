@@ -965,16 +965,26 @@
       msg.textContent = '解鎖中…';
       try {
         const unlocked = [];
+        // 同一組解鎖碼可開啟所有特別版；若某首檔案不是用這組碼加密，只略過該首
         for (const m of lockedMeta) {
-          const src = await decryptVaultFile(code, m.src_enc);
-          unlocked.push({ id: m.id, title: m.title, genre: m.genre, prompt: '', cover: m.cover || DEFAULT_COVER, src });
+          try {
+            const src = await decryptVaultFile(code, m.src_enc);
+            unlocked.push({ id: m.id, title: m.title, genre: m.genre, prompt: '', cover: m.cover || DEFAULT_COVER, src });
+          } catch (err) {
+            console.warn('此檔案無法用這組解鎖碼開啟：', m.title, err);
+          }
+        }
+        if (!unlocked.length) {
+          const wrong = new Error('解鎖碼錯誤');
+          wrong.name = 'OperationError';
+          throw wrong;
         }
         unlocked.forEach(u => {
           if (!songs.some(x => x.id === u.id)) songs.push(u);
           if (!stats[u.id]) stats[u.id] = { plays: 0, likes: 0 };
           if (!genres.includes(u.genre)) genres.push(u.genre);
         });
-        lockedMeta = [];
+        lockedMeta = lockedMeta.filter(m => !unlocked.some(u => u.id === m.id));
         document.getElementById('vaultCode').value = '';
         const remember = document.getElementById('vaultRemember').checked;
         try {
