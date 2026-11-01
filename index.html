@@ -163,7 +163,7 @@
       <select id="sortMode" class="bg-slate-800 border border-slate-700 rounded-full px-4 py-1.5 text-xs text-slate-200 focus:outline-none">
         <option value="manual">排名順序</option>
         <option value="name">🔤 曲名 A→Z</option>
-        <option value="hot">🔥 熱推排行</option>
+        <option value="hot">熱推排行</option>
         <option value="plays">▶ 播放次數</option>
         <option value="likes">👍 最多讚</option>
       </select>
@@ -520,7 +520,6 @@
               ${song.intro ? `<div class="mt-1"><button onclick="openIntro(${song.id})" class="text-[11px] text-purple-400 hover:underline mt-1">查看完整簡介</button></div>` : ''}
               <div class="flex items-center gap-4 mt-3 text-xs text-slate-400">
                 <span title="播放次數"><i class="fa-solid fa-headphones"></i> ${stat.plays}</span>
-                <span title="熱推分數">🔥 ${hotScore(song)}</span>
                 <button onclick="likeSong(${song.id})" class="login-only ml-auto flex items-center gap-1 px-2 py-1 rounded-full bg-slate-800 hover:bg-pink-600/30 hover:text-pink-300 transition">
                   <i class="fa-solid fa-thumbs-up"></i> ${stat.likes}
                 </button>
@@ -1507,7 +1506,7 @@
         return { s, score: (w.plays || 0) + (w.likes || 0) * 3 };
       }).filter(x => x.score > 0).sort((a, b) => b.score - a.score).slice(0, 3);
       box.innerHTML = rows.length
-        ? '<span class="text-xs text-slate-400">🔥 本週熱門</span>' + rows.map((x, i) =>
+        ? '<span class="text-xs text-slate-400">本週熱門</span>' + rows.map((x, i) =>
             `<button onclick="playSongById(${x.s.id})" class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs hover:border-amber-400">#${i + 1} ${esc(x.s.title)}</button>`).join('')
         : '<span class="text-xs text-slate-500">本週還沒有熱門歌曲</span>';
     }
