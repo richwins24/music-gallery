@@ -192,32 +192,7 @@
     <div id="musicGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"></div>
   </main>
 
-  <!-- 歌詞面板（逐行跟隨播放時間） -->
-  <div id="lyricsPanel" class="hidden fixed bottom-24 left-0 right-0 z-40 px-4">
-    <div class="max-w-2xl mx-auto border border-purple-500/40 rounded-2xl p-4 shadow-2xl" style="background:#0f172a">
-      <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
-        <p id="lyricsTitle" class="text-xs text-slate-400"></p>
-        <div class="flex items-center gap-2 text-[11px] text-slate-400">
-          <label class="flex items-center gap-1">已唱<input id="lyricPlayedColor" type="color" value="#c084fc" class="w-6 h-6 p-0 border-0 bg-transparent"></label>
-          <label class="flex items-center gap-1">未唱<input id="lyricTodoColor" type="color" value="#64748b" class="w-6 h-6 p-0 border-0 bg-transparent"></label>
-          <select id="lyricFx" class="bg-slate-800 border border-slate-700 rounded px-1 py-0.5 text-[11px] text-slate-200">
-            <option value="none">無特效</option>
-            <option value="glow">發光</option>
-            <option value="pop">跳動</option>
-            <option value="wave">波浪</option>
-            <option value="rainbow">彩虹</option>
-            <option value="neon">霓虹閃爍</option>
-            <option value="zoom">放大淡入</option>
-            <option value="3d">立體陰影</option>
-            <option value="sparkle">閃爍星光</option>
-            <option value="flow">流動漸層</option>
-            <option value="typing">打字機</option>
-          </select>
-        </div>
-      </div>
-      <div id="lyricsBox" class="h-48 overflow-y-auto text-center space-y-3 scroll-smooth"></div>
-    </div>
-  </div>
+  
 
   <!-- 通用面板（年度回顧／管理員報表） -->
   <div id="reviewPanel" class="hidden fixed inset-x-0 bottom-24 z-40 px-4">
@@ -248,6 +223,31 @@
   <!-- 底部播放器 -->
   <div id="playerBar" class="fixed bottom-0 left-0 right-0 bg-slate-900/95 border-t border-slate-800 backdrop-blur-md px-4 py-3 z-50 relative">
     <button id="collapseBtn" class="absolute -top-3 right-4 px-3 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-xs text-slate-300 hover:bg-slate-700" title="收起／展開播放器"><i class="fa-solid fa-chevron-down"></i> 收起</button>
+    <div id="lyricsPanel" class="hidden absolute bottom-full left-0 right-0 px-3 pb-2 z-40">
+    <div class="max-w-2xl mx-auto border border-purple-500/40 rounded-2xl p-4 shadow-2xl" style="background:#0f172a">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+        <p id="lyricsTitle" class="text-xs text-slate-400"></p>
+        <div class="flex items-center gap-2 text-[11px] text-slate-400">
+          <label class="flex items-center gap-1">已唱<input id="lyricPlayedColor" type="color" value="#c084fc" class="w-6 h-6 p-0 border-0 bg-transparent"></label>
+          <label class="flex items-center gap-1">未唱<input id="lyricTodoColor" type="color" value="#64748b" class="w-6 h-6 p-0 border-0 bg-transparent"></label>
+          <select id="lyricFx" class="bg-slate-800 border border-slate-700 rounded px-1 py-0.5 text-[11px] text-slate-200">
+            <option value="none">無特效</option>
+            <option value="glow">發光</option>
+            <option value="pop">跳動</option>
+            <option value="wave">波浪</option>
+            <option value="rainbow">彩虹</option>
+            <option value="neon">霓虹閃爍</option>
+            <option value="zoom">放大淡入</option>
+            <option value="3d">立體陰影</option>
+            <option value="sparkle">閃爍星光</option>
+            <option value="flow">流動漸層</option>
+            <option value="typing">打字機</option>
+          </select>
+        </div>
+      </div>
+      <div id="lyricsBox" class="h-48 overflow-y-auto text-center space-y-3 scroll-smooth"></div>
+    </div>
+  </div>
     <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
       <div class="flex items-center gap-3 w-full md:w-1/4">
         <img id="currentCover" src="" alt="" class="w-12 h-12 rounded-lg object-cover bg-slate-800">
@@ -1651,14 +1651,6 @@
     });
     try { setPlayerCollapsed(localStorage.getItem('sg_player_mini') === '1'); } catch (e) {}
 
-    // 歌詞面板永遠貼在播放器上方，不會被播放器蓋住
-    function placeLyricsPanel() {
-      const bar = document.getElementById('playerBar');
-      document.getElementById('lyricsPanel').style.bottom = (bar.offsetHeight + 10) + 'px';
-    }
-    window.addEventListener('resize', placeLyricsPanel);
-    document.getElementById('collapseBtn').addEventListener('click', () => setTimeout(placeLyricsPanel, 0));
-    placeLyricsPanel();
 
     // ===== 啟動：先讀本機資料，再讀 music/songs.json（所有人共用的歌單） =====
     async function loadRemote() {
