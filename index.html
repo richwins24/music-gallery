@@ -24,17 +24,14 @@
     #playerBar.mini .full-only, #playerBar.mini .extra-controls, #playerBar.mini #currentCover, #playerBar.mini #waveBar { display: none !important; }
     #playerBar.mini #currentTitle { font-size: 12px; }
 
-    /* ===== 歌詞逐字效果 ===== */
+    /* ===== 歌詞整句效果 ===== */
     #lyricsBox { --played: #c084fc; --todo: #64748b; }
-    .lyric-line { color: var(--todo); transition: color .3s, opacity .3s; opacity: .55; }
-    .lyric-line.on { opacity: 1; font-size: 1.125rem; font-weight: 700; }
-    .lyric-line .ch { color: var(--todo); transition: color .12s, text-shadow .2s, transform .2s; display: inline-block; }
-    .lyric-line .ch.done { color: var(--played); }
-    .lyric-line .ch.cur { color: var(--played); transform: translateY(-2px); }
-    #lyricsBox.fx-glow .lyric-line .ch.done { text-shadow: 0 0 10px var(--played), 0 0 20px var(--played); }
-    #lyricsBox.fx-pop .lyric-line .ch.cur { transform: scale(1.35); }
-    #lyricsBox.fx-wave .lyric-line .ch.done { animation: lyricWave 1.2s ease-in-out infinite; }
-    #lyricsBox.fx-rainbow .lyric-line .ch.done { background: linear-gradient(90deg, #f472b6, #facc15, #34d399, #60a5fa, #c084fc); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .lyric-line { color: var(--todo); opacity: .55; transition: color .3s, opacity .3s, transform .3s; }
+    .lyric-line.on { color: var(--played); opacity: 1; font-size: 1.125rem; font-weight: 700; }
+    #lyricsBox.fx-glow .lyric-line.on { text-shadow: 0 0 10px var(--played), 0 0 20px var(--played); }
+    #lyricsBox.fx-pop .lyric-line.on { transform: scale(1.08); }
+    #lyricsBox.fx-wave .lyric-line.on { animation: lyricWave 1.2s ease-in-out infinite; }
+    #lyricsBox.fx-rainbow .lyric-line.on { background: linear-gradient(90deg, #f472b6, #facc15, #34d399, #60a5fa, #c084fc); -webkit-background-clip: text; background-clip: text; color: transparent; }
     @keyframes lyricWave { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
 
     /* ===== 介面優化（電腦與手機） ===== */
@@ -752,10 +749,9 @@
         box.innerHTML = `<p class="text-slate-500 text-sm pt-16">尚無歌詞</p>`;
         return;
       }
-      box.innerHTML = currentLyrics.map((l, i) => {
-        const chars = [...String(l.text)].map(ch => `<span class="ch">${esc(ch)}</span>`).join('');
-        return `<p data-i="${i}" class="lyric-line">${chars}</p>`;
-      }).join('');
+      box.innerHTML = currentLyrics.map((l, i) =>
+        `<p data-i="${i}" class="lyric-line">${esc(l.text)}</p>`
+      ).join('');
       applyLyricStyle();
     }
 
@@ -766,27 +762,13 @@
       for (let i = 0; i < currentLyrics.length; i++) {
         if (currentLyrics[i].time <= t) idx = i; else break;
       }
+      if (idx === activeLyric) return;
+      activeLyric = idx;
       const box = document.getElementById('lyricsBox');
-      if (idx !== activeLyric) {
-        activeLyric = idx;
-        box.querySelectorAll('.lyric-line').forEach(p => p.classList.toggle('on', Number(p.dataset.i) === idx));
-        const cur = box.querySelector(`[data-i="${idx}"]`);
-        // 只捲動歌詞框本身，避免整個網頁跟著跳動
-        if (cur) box.scrollTo({ top: cur.offsetTop - box.clientHeight / 2 + cur.clientHeight / 2, behavior: 'smooth' });
-      }
-      if (idx < 0) return;
-      // 這一句從開始到下一句開始，平均分給每個字
-      const start = currentLyrics[idx].time;
-      const end = idx + 1 < currentLyrics.length ? currentLyrics[idx + 1].time : start + 4;
-      const p = Math.max(0, Math.min(1, (t - start) / Math.max(0.2, end - start)));
-      const line = box.querySelector(`[data-i="${idx}"]`);
-      if (!line) return;
-      const chars = line.querySelectorAll('.ch');
-      const done = Math.floor(p * chars.length);
-      chars.forEach((c, i) => {
-        c.classList.toggle('done', i < done);
-        c.classList.toggle('cur', i === done);
-      });
+      box.querySelectorAll('.lyric-line').forEach(p => p.classList.toggle('on', Number(p.dataset.i) === idx));
+      const cur = box.querySelector(`[data-i="${idx}"]`);
+      // 只捲動歌詞框本身，避免整個網頁跟著跳動
+      if (cur) box.scrollTo({ top: cur.offsetTop - box.clientHeight / 2 + cur.clientHeight / 2, behavior: 'smooth' });
     }
 
     // 歌詞顏色與特效設定（記在這台電腦）
