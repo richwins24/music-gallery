@@ -532,7 +532,7 @@
           <div class="p-4 flex flex-col flex-grow justify-between gap-3">
             <div>
               <h3 class="font-bold text-base text-white group-hover:text-purple-400 transition">${esc(song.title)}</h3>
-              ${song.intro ? `<div class="mt-1"><p class="text-xs text-slate-300 leading-relaxed line-clamp-2">${esc(song.intro)}</p><button onclick="openIntro(${song.id})" class="text-[11px] text-purple-400 hover:underline mt-1">查看完整簡介</button></div>` : ''}
+              ${song.intro ? `<div class="mt-1"><button onclick="openIntro(${song.id})" class="text-[11px] text-purple-400 hover:underline mt-1">查看完整簡介</button></div>` : ''}
               <div class="flex items-center gap-4 mt-3 text-xs text-slate-400">
                 <span title="播放次數"><i class="fa-solid fa-headphones"></i> ${stat.plays}</span>
                 <span title="熱推分數">🔥 ${hotScore(song)}</span>
@@ -776,7 +776,7 @@
       const box = document.getElementById('lyricsBox');
       document.getElementById('lyricsTitle').textContent = song ? song.title : '';
       const introEl = document.getElementById('songIntro');
-      introEl.textContent = song && song.intro ? song.intro : '';
+      introEl.textContent = '📖 查看簡介';
       introEl.classList.toggle('hidden', !(song && song.intro));
       const lines = await getLyrics(song);
       if (token !== lyricsToken) return;   // 已切換到其他歌，略過舊的結果
