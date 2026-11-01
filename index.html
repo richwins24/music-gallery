@@ -127,6 +127,7 @@
         <input id="vaultRemember" type="checkbox" class="accent-purple-500"> 記住在這台電腦
       </label>
       <span id="vaultMsg" class="text-xs text-slate-400"></span>
+      <button id="vaultForgetBtn" class="ml-auto px-3 py-1 rounded-lg bg-slate-800 hover:bg-red-900/60 text-xs text-slate-400 hover:text-red-200">清除此電腦的特別版紀錄</button>
     </div>
 
     <div id="musicGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"></div>
@@ -982,6 +983,19 @@
         else msg.textContent = '無法讀取特別版檔案：' + e.message;
       }
     }
+
+    // 清除此電腦的特別版紀錄：解鎖碼記憶、最後播放的特別版、本次已解鎖的歌曲
+    document.getElementById('vaultForgetBtn').addEventListener('click', () => {
+      if (!confirm('確定清除這台電腦上的特別版紀錄？（需要重新輸入解鎖碼）')) return;
+      try {
+        localStorage.removeItem('sg_vault');
+        const last = JSON.parse(localStorage.getItem('sg_last') || 'null');
+        if (last && songs.some(x => x.id === last.id && x.src && x.src.startsWith('blob:'))) localStorage.removeItem('sg_last');
+        localStorage.removeItem('sg_last_locked');
+      } catch (e) {}
+      alert('已清除，頁面將重新載入');
+      location.reload();
+    });
 
     document.getElementById('vaultBtn').addEventListener('click', () => unlockVault());
 
